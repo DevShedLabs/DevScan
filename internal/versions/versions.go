@@ -60,6 +60,12 @@ func fetchLatest(runtime string) (string, error) {
 		v, err = fetchNode()
 	case "python":
 		v, err = fetchPython()
+	case "php":
+		v, err = fetchPHP()
+	case "rust":
+		v, err = fetchRust()
+	case "git":
+		v, err = fetchGit()
 	default:
 		return "", nil
 	}
@@ -114,6 +120,67 @@ func fetchNode() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no LTS node release found")
+}
+
+func fetchGit() (string, error) {
+	resp, err := client.Get("https://api.github.com/repos/git/git/tags?per_page=20")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var tags []struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		return "", err
+	}
+	for _, t := range tags {
+		if !strings.Contains(t.Name, "-rc") {
+			return strings.TrimPrefix(t.Name, "v"), nil
+		}
+	}
+	return "", fmt.Errorf("no stable git release found")
+}
+
+func fetchRust() (string, error) {
+	resp, err := client.Get("https://api.github.com/repos/rust-lang/rust/releases/latest")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", err
+	}
+	if release.TagName == "" {
+		return "", fmt.Errorf("no rust release found")
+	}
+	return release.TagName, nil
+}
+
+func fetchPHP() (string, error) {
+	resp, err := client.Get("https://www.php.net/releases/index.php?json")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Top-level keys are major versions ("8", "7", etc.)
+	// The first key is always the latest stable major.
+	var releases map[string]struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return "", err
+	}
+	if r, ok := releases["8"]; ok && r.Version != "" {
+		return r.Version, nil
+	}
+	return "", fmt.Errorf("no stable php release found")
 }
 
 func fetchPython() (string, error) {

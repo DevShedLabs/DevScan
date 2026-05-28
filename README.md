@@ -187,8 +187,7 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 
 ## Roadmap
 
-- [x] Runtime latest-version checks — Go, Node, Python
-- [ ] Runtime latest-version checks — PHP, Rust, Git
+- [x] Runtime latest-version checks — Go, Node, Python, PHP, Rust, Git
 - [ ] Ruby / gem support
 - [ ] Homebrew package inspection
 - [ ] TUI (Bubbletea)
