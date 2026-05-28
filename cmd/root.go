@@ -30,6 +30,7 @@ func init() {
 	rootCmd.PersistentFlags().String("severity", "", "Filter by severity: critical|high|medium|low")
 	rootCmd.PersistentFlags().String("ecosystem", "", "Filter by ecosystem: npm|pypi|gem|go")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
+	rootCmd.PersistentFlags().Bool("no-cache", false, "Bypass cache and force a fresh advisory lookup")
 	rootCmd.PersistentFlags().Bool("global", false, "Scan global packages (default)")
 	rootCmd.PersistentFlags().Bool("project", false, "Scan current project directory")
 	rootCmd.PersistentFlags().String("path", "", "Explicit project path to scan")

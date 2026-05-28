@@ -12,14 +12,16 @@ import (
 )
 
 type scanOptions struct {
-	scope string // "global" | "project"
-	path  string
+	scope   string // "global" | "project"
+	path    string
+	noCache bool
 }
 
 func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 	project, _ := cmd.Flags().GetBool("project")
 	global, _ := cmd.Flags().GetBool("global")
 	path, _ := cmd.Flags().GetString("path")
+	noCache, _ := cmd.Flags().GetBool("no-cache")
 
 	scope := "global"
 	if project || path != "" {
@@ -32,7 +34,21 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 		path = cwd
 	}
 
-	return scanOptions{scope: scope, path: path}
+	return scanOptions{scope: scope, path: path, noCache: noCache}
+}
+
+func deduplicatePackages(packages []schema.Package) []schema.Package {
+	seen := map[string]bool{}
+	out := make([]schema.Package, 0, len(packages))
+	for _, p := range packages {
+		key := p.Ecosystem + "|" + p.Name + "|" + p.Version
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, p)
+	}
+	return out
 }
 
 func runFullScan(opts scanOptions) (*schema.Report, error) {
@@ -52,10 +68,10 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 	report.Runtimes = detectors.RunAll(detectors.All())
 
 	// Inspect packages
-	report.Packages = inspectors.RunAll(inspectors.All(), opts.scope, opts.path)
+	report.Packages = deduplicatePackages(inspectors.RunAll(inspectors.All(), opts.scope, opts.path))
 
 	// Query advisories
-	client := advisory.NewClient()
+	client := advisory.NewClient(opts.noCache)
 	vulns, err := client.QueryPackages(report.Packages)
 	if err == nil {
 		report.Vulnerabilities = vulns

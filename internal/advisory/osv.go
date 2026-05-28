@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
@@ -15,12 +16,14 @@ const osvBatchURL = "https://api.osv.dev/v1/querybatch"
 type Client struct {
 	http    *http.Client
 	baseURL string
+	noCache bool
 }
 
-func NewClient() *Client {
+func NewClient(noCache bool) *Client {
 	return &Client{
 		http:    &http.Client{Timeout: 30 * time.Second},
 		baseURL: osvBatchURL,
+		noCache: noCache,
 	}
 }
 
@@ -91,7 +94,10 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		return nil, nil
 	}
 
+	// Build queries and keep a parallel slice of the packages that were queried,
+	// so batch.Results[i] always maps to queried[i] regardless of skipped ecosystems.
 	queries := make([]osvPackageQuery, 0, len(packages))
+	queried := make([]schema.Package, 0, len(packages))
 	for _, p := range packages {
 		eco, ok := osvEcosystem[p.Ecosystem]
 		if !ok {
@@ -101,10 +107,38 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 			Package: osvPackage{Name: p.Name, Ecosystem: eco},
 			Version: p.Version,
 		})
+		queried = append(queried, p)
 	}
 
 	if len(queries) == 0 {
 		return nil, nil
+	}
+
+	// Sort by a stable key so the cache hash is order-independent.
+	// queries and queried are parallel slices so we sort them together.
+	type pair struct {
+		q osvPackageQuery
+		p schema.Package
+	}
+	pairs := make([]pair, len(queries))
+	for i := range queries {
+		pairs[i] = pair{queries[i], queried[i]}
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		ki := pairs[i].q.Package.Ecosystem + "|" + pairs[i].q.Package.Name + "|" + pairs[i].q.Version
+		kj := pairs[j].q.Package.Ecosystem + "|" + pairs[j].q.Package.Name + "|" + pairs[j].q.Version
+		return ki < kj
+	})
+	for i := range pairs {
+		queries[i] = pairs[i].q
+		queried[i] = pairs[i].p
+	}
+
+	key := cacheKey(queries)
+	if !c.noCache {
+		if cached, ok := c.loadCache(key); ok {
+			return cached, nil
+		}
 	}
 
 	body, err := json.Marshal(osvQuery{Queries: queries})
@@ -127,13 +161,22 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		return nil, fmt.Errorf("advisory: decode: %w", err)
 	}
 
+	seen := map[string]bool{}
 	var vulns []schema.Vulnerability
 	for i, result := range batch.Results {
-		if i >= len(packages) {
+		if i >= len(queried) {
 			break
 		}
-		pkg := packages[i]
+		pkg := queried[i]
 		for _, v := range result.Vulns {
+			// Deduplicate by vuln ID + package name + version so that the same
+			// advisory doesn't appear twice when a package is listed multiple times.
+			key := v.ID + "|" + pkg.Name + "|" + pkg.Version
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+
 			vuln := schema.Vulnerability{
 				ID:               v.ID,
 				Package:          pkg.Name,
@@ -158,6 +201,10 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 
 			vulns = append(vulns, vuln)
 		}
+	}
+
+	if !c.noCache {
+		c.saveCache(key, vulns)
 	}
 
 	return vulns, nil

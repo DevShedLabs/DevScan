@@ -89,6 +89,24 @@ Useful for CI pipelines:
 
 ---
 
+## Cache
+
+Advisory results from OSV.dev are cached for 1 hour to avoid redundant network requests on repeated scans.
+
+| OS | Cache location |
+|---|---|
+| macOS | `~/Library/Caches/devscan/` |
+| Linux | `~/.cache/devscan/` |
+| Windows | `%LocalAppData%\devscan\` |
+
+Force a fresh lookup at any time:
+
+```bash
+devscan doctor --no-cache
+```
+
+---
+
 ## Config File
 
 Place `.devscan.json` in your project root or home directory:
