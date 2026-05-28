@@ -171,10 +171,10 @@ func renderTable(w io.Writer, report *schema.Report) error {
 	// Summary
 	s := report.Summary
 	fmt.Fprintln(tw, bold("Summary:"))
-	fmt.Fprintf(tw, "  Runtimes:\t%d\n", s.Runtimes)
-	fmt.Fprintf(tw, "  Packages:\t%d\n", s.Packages)
-	fmt.Fprintf(tw, "  Vulnerabilities:\t%s\n", vulnSummaryLine(s.Vulnerabilities))
-	fmt.Fprintf(tw, "  Outdated:\t%d\n", s.Outdated)
+	fmt.Fprintf(tw, "  Runtimes detected:\t%d\n", s.Runtimes)
+	fmt.Fprintf(tw, "  Packages scanned:\t%d\n", s.Packages)
+	fmt.Fprintf(tw, "  Known vulnerabilities:\t%s\n", vulnSummaryLine(s.Vulnerabilities))
+	fmt.Fprintf(tw, "  Packages outdated:\t%d\n", s.Outdated)
 
 	return tw.Flush()
 }

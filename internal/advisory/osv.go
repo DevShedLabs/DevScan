@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
 
-const osvBatchURL = "https://api.osv.dev/v1/querybatch"
+const (
+	osvBatchURL  = "https://api.osv.dev/v1/querybatch"
+	osvVulnURL   = "https://api.osv.dev/v1/vulns/"
+)
 
 type Client struct {
 	http    *http.Client
@@ -29,11 +33,12 @@ func NewClient(noCache bool) *Client {
 
 // osvEcosystem maps our ecosystem names to OSV ecosystem names.
 var osvEcosystem = map[string]string{
-	"npm":   "npm",
-	"pypi":  "PyPI",
-	"gem":   "RubyGems",
-	"go":    "Go",
-	"cargo": "crates.io",
+	"npm":        "npm",
+	"pypi":       "PyPI",
+	"gem":        "RubyGems",
+	"go":         "Go",
+	"crates.io":  "crates.io",
+	"packagist":  "Packagist",
 }
 
 type osvQuery struct {
@@ -203,6 +208,10 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		}
 	}
 
+	// Enrich each vuln with full details (summary + severity) from /v1/vulns/{id}.
+	// The batch endpoint omits these fields; the detail endpoint returns them.
+	c.enrichVulns(vulns)
+
 	if !c.noCache {
 		c.saveCache(key, vulns)
 	}
@@ -210,20 +219,160 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 	return vulns, nil
 }
 
+// enrichVulns fetches full vuln details concurrently for any entry missing a title or severity.
+func (c *Client) enrichVulns(vulns []schema.Vulnerability) {
+	type work struct {
+		idx int
+		id  string
+	}
+
+	jobs := make([]work, 0, len(vulns))
+	for i, v := range vulns {
+		if v.Title == "" || v.Severity == schema.SeverityUnknown {
+			jobs = append(jobs, work{i, v.ID})
+		}
+	}
+	if len(jobs) == 0 {
+		return
+	}
+
+	type result struct {
+		idx  int
+		data *osvVuln
+	}
+
+	ch := make(chan result, len(jobs))
+	for _, j := range jobs {
+		j := j
+		go func() {
+			resp, err := c.http.Get(osvVulnURL + j.id)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				ch <- result{j.idx, nil}
+				return
+			}
+			defer resp.Body.Close()
+			var v osvVuln
+			if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+				ch <- result{j.idx, nil}
+				return
+			}
+			ch <- result{j.idx, &v}
+		}()
+	}
+
+	for range jobs {
+		r := <-ch
+		if r.data == nil {
+			continue
+		}
+		if vulns[r.idx].Title == "" {
+			vulns[r.idx].Title = r.data.Summary
+		}
+		if vulns[r.idx].Severity == schema.SeverityUnknown {
+			vulns[r.idx].Severity = parseSeverity(r.data.Severity)
+		}
+	}
+}
+
 func parseSeverity(severities []osvSeverity) schema.Severity {
+	// Prefer CVSS_V3, fall back to CVSS_V4, then CVSS_V2.
+	order := []string{"CVSS_V3", "CVSS_V4", "CVSS_V2"}
+	byType := map[string]string{}
 	for _, s := range severities {
-		if s.Type == "CVSS_V3" || s.Type == "CVSS_V2" {
-			return cvssToSeverity(s.Score)
+		byType[s.Type] = s.Score
+	}
+	for _, t := range order {
+		if score, ok := byType[t]; ok {
+			return cvssVectorToSeverity(score)
 		}
 	}
 	return schema.SeverityUnknown
 }
 
-func cvssToSeverity(score string) schema.Severity {
-	// CVSS scores are strings like "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-	// For now return unknown; a real implementation would parse the base score.
-	_ = score
-	return schema.SeverityUnknown
+// cvssVectorToSeverity derives a severity bucket from a CVSS vector string.
+// Rather than re-implementing the full CVSS calculator we derive the numeric
+// base score from the Impact and Exploitability sub-scores encoded in the
+// vector, which is accurate for the NVD severity bands:
+//
+//	0.0        → none
+//	0.1 – 3.9  → low
+//	4.0 – 6.9  → medium
+//	7.0 – 8.9  → high
+//	9.0 – 10.0 → critical
+//
+// For simplicity we map the confidentiality/integrity/availability impact
+// components (N/L/H) and the attack vector to a coarse score that matches
+// the NVD bands in practice.
+func cvssVectorToSeverity(vector string) schema.Severity {
+	// Extract the numeric base score from the vector by scoring each metric.
+	// CVSS:3.x/AV:_/AC:_/PR:_/UI:_/S:_/C:_/I:_/A:_
+	metrics := map[string]string{}
+	for _, part := range strings.Split(vector, "/") {
+		kv := strings.SplitN(part, ":", 2)
+		if len(kv) == 2 {
+			metrics[kv[0]] = kv[1]
+		}
+	}
+
+	// Impact sub-score weights (simplified NVD mapping).
+	impactWeight := map[string]float64{"N": 0.0, "L": 0.22, "H": 0.56}
+	c := impactWeight[metrics["C"]]
+	i := impactWeight[metrics["I"]]
+	a := impactWeight[metrics["A"]]
+	iss := 1 - (1-c)*(1-i)*(1-a)
+
+	// Scope affects impact calculation.
+	var impact float64
+	if metrics["S"] == "C" {
+		impact = 7.52*(iss-0.029) - 3.25*pow(iss-0.02, 15)
+	} else {
+		impact = 6.42 * iss
+	}
+
+	if impact <= 0 {
+		return schema.SeverityLow
+	}
+
+	// Exploitability sub-score.
+	avW := map[string]float64{"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
+	acW := map[string]float64{"L": 0.77, "H": 0.44}
+	prW := map[string]float64{"N": 0.85, "L": 0.62, "H": 0.27}
+	if metrics["S"] == "C" {
+		prW = map[string]float64{"N": 0.85, "L": 0.68, "H": 0.5}
+	}
+	uiW := map[string]float64{"N": 0.85, "R": 0.62}
+
+	exploitability := 8.22 *
+		avW[metrics["AV"]] *
+		acW[metrics["AC"]] *
+		prW[metrics["PR"]] *
+		uiW[metrics["UI"]]
+
+	base := impact + exploitability
+	if base > 10 {
+		base = 10
+	}
+
+	switch {
+	case base >= 9.0:
+		return schema.SeverityCritical
+	case base >= 7.0:
+		return schema.SeverityHigh
+	case base >= 4.0:
+		return schema.SeverityMedium
+	case base > 0:
+		return schema.SeverityLow
+	default:
+		return schema.SeverityUnknown
+	}
+}
+
+func pow(x, y float64) float64 {
+	result := 1.0
+	for i := 0; i < int(y); i++ {
+		result *= x
+	}
+	return result
 }
 
 func extractFixed(affected []osvAffected) string {

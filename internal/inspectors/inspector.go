@@ -45,5 +45,8 @@ func All() []Inspector {
 	return []Inspector{
 		&NpmInspector{},
 		&PipInspector{},
+		&ComposerInspector{},
+		&CargoInspector{},
+		&GoModInspector{},
 	}
 }
