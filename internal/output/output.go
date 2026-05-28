@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -132,20 +133,26 @@ func renderTable(w io.Writer, report *schema.Report) error {
 		fmt.Fprintln(tw)
 	}
 
-	// Vulnerabilities
+	// Vulnerabilities — grouped by package@version, one block per package
 	if len(report.Vulnerabilities) > 0 {
 		fmt.Fprintln(tw, bold("Vulnerabilities:"))
-		for _, v := range report.Vulnerabilities {
-			color := severityColor(v.Severity)
+		for _, group := range groupVulns(report.Vulnerabilities) {
+			color := severityColor(group.worst)
 			reset := ""
 			if color != "" {
 				reset = colorReset
 			}
 			fmt.Fprintf(tw, "  %s%s %s@%s%s\n",
-				color, severityIcon(v.Severity), v.Package, v.InstalledVersion, reset)
-			fmt.Fprintf(tw, "     %s\n", v.Title)
-			if v.Fix != nil {
-				fmt.Fprintf(tw, "     Fix: %s\n", v.Fix.Command)
+				color, severityIcon(group.worst), group.pkg, group.version, reset)
+			for _, v := range group.vulns {
+				title := v.Title
+				if title == "" {
+					title = v.ID
+				}
+				fmt.Fprintf(tw, "     %s  %s\n", v.ID, title)
+				if v.Fix != nil && v.Fix.Command != "" {
+					fmt.Fprintf(tw, "     Fix: %s\n", v.Fix.Command)
+				}
 			}
 		}
 		fmt.Fprintln(tw)
@@ -197,4 +204,47 @@ func bold(s string) string {
 		return s
 	}
 	return colorBold + s + colorReset
+}
+
+type vulnGroup struct {
+	pkg     string
+	version string
+	worst   schema.Severity
+	vulns   []schema.Vulnerability
+}
+
+var severityRank = map[schema.Severity]int{
+	schema.SeverityCritical: 4,
+	schema.SeverityHigh:     3,
+	schema.SeverityMedium:   2,
+	schema.SeverityLow:      1,
+	schema.SeverityUnknown:  0,
+}
+
+func groupVulns(vulns []schema.Vulnerability) []vulnGroup {
+	order := []string{}
+	groups := map[string]*vulnGroup{}
+
+	for _, v := range vulns {
+		key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
+		if _, exists := groups[key]; !exists {
+			order = append(order, key)
+			groups[key] = &vulnGroup{pkg: v.Package, version: v.InstalledVersion, worst: schema.SeverityUnknown}
+		}
+		g := groups[key]
+		g.vulns = append(g.vulns, v)
+		if severityRank[v.Severity] > severityRank[g.worst] {
+			g.worst = v.Severity
+		}
+	}
+
+	sort.Slice(order, func(i, j int) bool {
+		return severityRank[groups[order[i]].worst] > severityRank[groups[order[j]].worst]
+	})
+
+	result := make([]vulnGroup, len(order))
+	for i, key := range order {
+		result[i] = *groups[key]
+	}
+	return result
 }
