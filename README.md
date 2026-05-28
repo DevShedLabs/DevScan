@@ -30,8 +30,10 @@ go build -o devscan .
 | `devscan audit` | Vulnerabilities only |
 | `devscan outdated` | Version drift only |
 | `devscan list` | Inventory of detected runtimes and packages |
+| `devscan locate` | Filesystem paths for every vulnerable package |
 | `devscan scan` | Raw JSON scan output for piping |
 | `devscan fix` | Suggested fix commands |
+| `devscan report` | Export a full report as Markdown, HTML, or JSON |
 
 ---
 
@@ -43,6 +45,9 @@ devscan doctor
 
 # Audit for vulnerabilities, filter to high and above
 devscan audit --severity high
+
+# Show exactly where vulnerable packages are installed
+devscan locate
 
 # Scan a specific project
 devscan doctor --path ./my-app
@@ -56,16 +61,40 @@ devscan audit --severity critical
 
 ---
 
+## Reports
+
+Generate a shareable report in Markdown, HTML, or JSON:
+
+```bash
+# Markdown to stdout
+devscan report --md
+
+# HTML file
+devscan report --html --output report.html
+
+# JSON file
+devscan report --json --output scan.json
+
+# Scoped to a project
+devscan report --html --output report.html --path ./my-app
+```
+
+The HTML report includes summary cards, severity-grouped vulnerabilities with OSV links, filesystem paths, and a full package inventory.
+
+---
+
 ## Flags
 
 ```
 --format string      Output format: table|json|compact (default "table")
 --severity string    Filter by severity: critical|high|medium|low
---ecosystem string   Filter by ecosystem: npm|pypi|gem|go
+--ecosystem string   Filter by ecosystem: npm|pypi|packagist|crates.io|go
 --global             Scan global packages (default)
 --project            Scan current project directory
 --path string        Explicit project path to scan
 --no-color           Disable color output
+--no-cache           Bypass cache and force a fresh advisory lookup
+-o, --output string  Write report to file (report command only)
 ```
 
 ---
@@ -124,13 +153,16 @@ Place `.devscan.json` in your project root or home directory:
 
 ## Supported Ecosystems
 
-| Ecosystem | Packages | Vulnerabilities |
-|---|---|---|
-| Node.js / npm | ✓ | ✓ via OSV.dev |
-| Python / pip | ✓ | ✓ via OSV.dev |
-| More coming | — | — |
+| Ecosystem | Runtime | Packages | Vulnerabilities |
+|---|---|---|---|
+| Node.js / npm | ✓ | ✓ | ✓ via OSV.dev |
+| Python / pip | ✓ | ✓ | ✓ via OSV.dev |
+| PHP / Composer | ✓ | ✓ | ✓ via OSV.dev |
+| Rust / Cargo | ✓ | ✓ | ✓ via OSV.dev |
+| Go modules | ✓ | ✓ (project) | ✓ via OSV.dev |
+| Git | ✓ | — | — |
 
-Vulnerability data is sourced from [OSV.dev](https://osv.dev) — an open, community-driven vulnerability database covering npm, PyPI, Go, Maven, and more.
+Vulnerability data is sourced from [OSV.dev](https://osv.dev) — an open, community-driven vulnerability database covering npm, PyPI, Go, crates.io, Packagist, and more.
 
 ---
 
@@ -140,10 +172,11 @@ Vulnerability data is sourced from [OSV.dev](https://osv.dev) — an open, commu
 devscan/
   cmd/                  # CLI commands (Cobra)
   internal/
-    detectors/          # Runtime detection (node, python, git, ...)
-    inspectors/         # Package inspection (npm, pip, ...)
-    advisory/           # Vulnerability lookups (OSV.dev)
-    output/             # Renderers (table, JSON, compact)
+    detectors/          # Runtime detection (node, python, git, php, rust, go)
+    inspectors/         # Package inspection (npm, pip, composer, cargo, gomod)
+    advisory/           # Vulnerability lookups (OSV.dev) with 1hr cache
+    output/             # Terminal renderers (table, JSON, compact)
+    report/             # Export renderers (Markdown, HTML, JSON)
     schema/             # Shared types
 ```
 
@@ -153,9 +186,9 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 
 ## Roadmap
 
-- [ ] Homebrew, Go modules, Ruby gems support
-- [ ] CVSS score parsing for accurate severity levels
 - [ ] Runtime latest-version checks (Node release API, python.org)
+- [ ] Ruby / gem support
+- [ ] Homebrew package inspection
 - [ ] TUI (Bubbletea)
 - [ ] `--watch` mode
 - [ ] Baseline diff (`--compare baseline.json`)
