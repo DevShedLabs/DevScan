@@ -3,6 +3,7 @@ package inspectors
 import (
 	"encoding/json"
 	"os/exec"
+	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
@@ -17,8 +18,7 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		return nil, nil
 	}
 
-	// Global installed binaries: `go env GOPATH` + /bin — not easily enumerable with versions.
-	// For project scope: `go list -m -json all` gives module graph with versions.
+	// Global go binaries aren't enumerable with versions — skip.
 	if scope == "global" {
 		return nil, nil
 	}
@@ -33,20 +33,21 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		return nil, nil
 	}
 
-	// go list -json outputs concatenated JSON objects, not an array.
+	// go list -json emits concatenated JSON objects, not an array.
 	var packages []schema.Package
-	dec := json.NewDecoder(jsonStream(out))
+	dec := json.NewDecoder(strings.NewReader(string(out)))
 	first := true
 	for dec.More() {
 		var mod struct {
 			Path    string `json:"Path"`
 			Version string `json:"Version"`
+			Dir     string `json:"Dir"` // path in module cache
 			Main    bool   `json:"Main"`
 		}
 		if err := dec.Decode(&mod); err != nil {
 			break
 		}
-		// Skip the main module itself and indirect deps without versions.
+		// Skip the main module and entries without versions.
 		if mod.Main || mod.Version == "" || first {
 			first = false
 			continue
@@ -57,27 +58,9 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 			Ecosystem: "go",
 			Scope:     "project",
 			Direct:    true,
+			Path:      mod.Dir,
 		})
 	}
 
 	return packages, nil
-}
-
-// jsonStream wraps a byte slice so the JSON decoder can handle concatenated objects.
-type jsonStreamReader struct {
-	data []byte
-	pos  int
-}
-
-func (r *jsonStreamReader) Read(p []byte) (int, error) {
-	if r.pos >= len(r.data) {
-		return 0, nil
-	}
-	n := copy(p, r.data[r.pos:])
-	r.pos += n
-	return n, nil
-}
-
-func jsonStream(data []byte) *jsonStreamReader {
-	return &jsonStreamReader{data: data}
 }

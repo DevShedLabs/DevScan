@@ -3,7 +3,6 @@ package inspectors
 import (
 	"encoding/json"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
@@ -18,7 +17,8 @@ func (i *ComposerInspector) Inspect(scope, path string) ([]schema.Package, error
 		return nil, nil
 	}
 
-	args := []string{"show", "--format=json", "--no-interaction"}
+	// --path adds install paths; --format=json for machine-readable output.
+	args := []string{"show", "--path", "--format=json", "--no-interaction"}
 	if scope == "global" {
 		args = append(args, "--global")
 	}
@@ -39,16 +39,12 @@ func (i *ComposerInspector) Inspect(scope, path string) ([]schema.Package, error
 		Installed []struct {
 			Name    string `json:"name"`
 			Version string `json:"version"`
+			Path    string `json:"path"`
 		} `json:"installed"`
 	}
 
 	if err := json.Unmarshal(out, &raw); err != nil {
 		return nil, err
-	}
-
-	pkgPath := ""
-	if scope == "project" && path != "" {
-		pkgPath = filepath.Join(path, "composer.json")
 	}
 
 	packages := make([]schema.Package, 0, len(raw.Installed))
@@ -59,7 +55,7 @@ func (i *ComposerInspector) Inspect(scope, path string) ([]schema.Package, error
 			Ecosystem: "packagist",
 			Scope:     scope,
 			Direct:    true,
-			Path:      pkgPath,
+			Path:      p.Path,
 		})
 	}
 	return packages, nil

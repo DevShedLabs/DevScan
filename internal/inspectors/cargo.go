@@ -2,7 +2,10 @@ package inspectors
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
@@ -16,9 +19,6 @@ func (i *CargoInspector) Inspect(scope, path string) ([]schema.Package, error) {
 	if _, err := exec.LookPath("cargo"); err != nil {
 		return nil, nil
 	}
-
-	// cargo install --list outputs human-readable text; cargo metadata gives JSON
-	// for project mode. For global, we parse `cargo install --list`.
 	if scope == "global" {
 		return i.inspectGlobal()
 	}
@@ -31,26 +31,41 @@ func (i *CargoInspector) inspectGlobal() ([]schema.Package, error) {
 		return nil, nil
 	}
 
+	cargoHome := os.Getenv("CARGO_HOME")
+	if cargoHome == "" {
+		home, _ := os.UserHomeDir()
+		cargoHome = filepath.Join(home, ".cargo")
+	}
+	binDir := filepath.Join(cargoHome, "bin")
+
 	// Output format:
-	//   package-name v1.2.3:
-	//       binary-name
+	//   ripgrep v14.1.0:
+	//       rg
+	//   pac-cli v0.1.0 (/Users/jeffrey/www/PAC/crates/pac-cli):
+	//       pac
 	var packages []schema.Package
-	lines := splitLines(string(out))
-	for _, line := range lines {
+	for _, line := range splitLines(string(out)) {
 		if len(line) == 0 || line[0] == ' ' || line[0] == '\t' {
 			continue
 		}
-		// "package-name v1.2.3:"
-		var name, version string
-		if n, err := parseCargoListLine(line, &name, &version); n == 2 && err == nil {
-			packages = append(packages, schema.Package{
-				Name:      name,
-				Version:   version,
-				Ecosystem: "crates.io",
-				Scope:     "global",
-				Direct:    true,
-			})
+		name, version, localPath := parseCargoListLine(line)
+		if name == "" {
+			continue
 		}
+
+		pkgPath := localPath
+		if pkgPath == "" {
+			pkgPath = filepath.Join(binDir, name)
+		}
+
+		packages = append(packages, schema.Package{
+			Name:      name,
+			Version:   version,
+			Ecosystem: "crates.io",
+			Scope:     "global",
+			Direct:    true,
+			Path:      pkgPath,
+		})
 	}
 	return packages, nil
 }
@@ -68,9 +83,10 @@ func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
 
 	var meta struct {
 		Packages []struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			Source  string `json:"source"`
+			Name         string `json:"name"`
+			Version      string `json:"version"`
+			Source       string `json:"source"`
+			ManifestPath string `json:"manifest_path"`
 		} `json:"packages"`
 	}
 
@@ -80,7 +96,6 @@ func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
 
 	packages := make([]schema.Package, 0, len(meta.Packages))
 	for _, p := range meta.Packages {
-		// Skip workspace-local crates (source is nil for local packages)
 		if p.Source == "" {
 			continue
 		}
@@ -90,46 +105,35 @@ func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
 			Ecosystem: "crates.io",
 			Scope:     "project",
 			Direct:    true,
+			Path:      filepath.Dir(p.ManifestPath),
 		})
 	}
 	return packages, nil
 }
 
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
+// parseCargoListLine parses a line like:
+//
+//	ripgrep v14.1.0:
+//	pac-cli v0.1.0 (/Users/jeffrey/www/PAC/crates/pac-cli):
+func parseCargoListLine(line string) (name, version, localPath string) {
+	// Strip trailing colon
+	line = strings.TrimSuffix(strings.TrimSpace(line), ":")
+
+	// Extract optional local path in parens at the end
+	if idx := strings.LastIndex(line, " ("); idx != -1 {
+		localPath = strings.Trim(line[idx+2:], "()")
+		line = strings.TrimSpace(line[:idx])
 	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
+
+	parts := strings.Fields(line)
+	if len(parts) < 2 {
+		return "", "", ""
 	}
-	return lines
+	name = parts[0]
+	version = strings.TrimPrefix(parts[1], "v")
+	return name, version, localPath
 }
 
-func parseCargoListLine(line string, name, version *string) (int, error) {
-	// "ripgrep v14.1.0:"  →  name="ripgrep", version="14.1.0"
-	var n int
-	for i, ch := range line {
-		if ch == ' ' {
-			*name = line[:i]
-			rest := line[i+1:]
-			// strip leading 'v' and trailing ':'
-			j := len(rest)
-			for j > 0 && (rest[j-1] == ':' || rest[j-1] == ' ') {
-				j--
-			}
-			if j > 0 && rest[0] == 'v' {
-				*version = rest[1:j]
-			} else {
-				*version = rest[:j]
-			}
-			n = 2
-			break
-		}
-	}
-	return n, nil
+func splitLines(s string) []string {
+	return strings.Split(s, "\n")
 }
