@@ -1,0 +1,18 @@
+CLI-SPEC.md
+Idea.md
+
+# build output
+devscan
+dist/
+
+# macOS
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+
+# env / config overrides
+.devscan.json
+*.local.json
+
