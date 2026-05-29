@@ -51,6 +51,18 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	p("| Scan duration | %s |", formatDuration(r.Meta.DurationMs))
 	p("")
 
+	// Projects (depth scan only)
+	if len(r.Projects) > 0 {
+		p("## Projects (%d)", len(r.Projects))
+		p("")
+		p("| # | Path |")
+		p("|---|---|")
+		for i, proj := range r.Projects {
+			p("| %d | `%s` |", i+1, proj)
+		}
+		p("")
+	}
+
 	// Runtimes
 	p("## Runtimes")
 	p("")

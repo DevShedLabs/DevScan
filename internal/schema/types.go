@@ -101,14 +101,15 @@ type Summary struct {
 }
 
 type Report struct {
-	Meta            Meta             `json:"meta"`
+	Meta            Meta              `json:"meta"`
 	System          map[string]string `json:"system"`
-	Runtimes        []Runtime        `json:"runtimes"`
-	PackageManagers []PackageManager `json:"package_managers"`
-	Packages        []Package        `json:"packages"`
-	Vulnerabilities []Vulnerability  `json:"vulnerabilities"`
-	Outdated        []Outdated       `json:"outdated"`
-	Summary         Summary          `json:"summary"`
+	Projects        []string          `json:"projects,omitempty"`
+	Runtimes        []Runtime         `json:"runtimes"`
+	PackageManagers []PackageManager  `json:"package_managers"`
+	Packages        []Package         `json:"packages"`
+	Vulnerabilities []Vulnerability   `json:"vulnerabilities"`
+	Outdated        []Outdated        `json:"outdated"`
+	Summary         Summary           `json:"summary"`
 }
 
 func (r *Report) ComputeSummary() {

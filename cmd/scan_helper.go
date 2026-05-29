@@ -134,6 +134,9 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 
 	// Collect project paths to scan
 	paths := projectPaths(opts)
+	if opts.depth > 0 && len(paths) > 1 {
+		report.Projects = paths
+	}
 
 	// Inspect packages across all paths
 	var allPackages []schema.Package

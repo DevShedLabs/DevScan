@@ -90,6 +90,21 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	}
 	p(`</section>`)
 
+	// Projects (depth scan only)
+	if len(r.Projects) > 0 {
+		p(`<section>`)
+		p(`  <h2 class="section-heading">Projects<span class="heading-count">%d</span></h2>`, len(r.Projects))
+		p(`  <table>`)
+		p(`    <thead><tr><th>#</th><th>Path</th></tr></thead>`)
+		p(`    <tbody>`)
+		for i, proj := range r.Projects {
+			p(`      <tr><td>%d</td><td><code>%s</code></td></tr>`, i+1, html.EscapeString(proj))
+		}
+		p(`    </tbody>`)
+		p(`  </table>`)
+		p(`</section>`)
+	}
+
 	// Vulnerabilities
 	vs := r.Summary.Vulnerabilities
 	vulnTotal := vs.Critical + vs.High + vs.Medium + vs.Low
