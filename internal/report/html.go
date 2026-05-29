@@ -80,8 +80,10 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	p(`</section>`)
 
 	// Vulnerabilities
+	vs := r.Summary.Vulnerabilities
+	vulnTotal := vs.Critical + vs.High + vs.Medium + vs.Low
 	p(`<section>`)
-	p(`  <h2>Vulnerabilities</h2>`)
+	p(`  <h2 class="section-heading">Vulnerabilities<span class="heading-count">%d</span></h2>`, vulnTotal)
 	if len(r.Vulnerabilities) == 0 {
 		p(`  <p class="empty">No vulnerabilities found.</p>`)
 	} else {
@@ -104,8 +106,8 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 				p(`      <span class="pkg-name"><code>%s@%s</code></span>`, html.EscapeString(pkg.name), html.EscapeString(pkg.version))
 				p(`      <span class="ecosystem">%s</span>`, html.EscapeString(pkg.ecosystem))
 				p(`    </div>`)
-				if pkg.path != "" {
-					p(`    <div class="vuln-path">📂 <code>%s</code></div>`, html.EscapeString(pkg.path))
+				for _, path := range pkg.paths {
+					p(`    <div class="vuln-path">📂 <code>%s</code></div>`, html.EscapeString(path))
 				}
 				hasFixed := anyFixedIn(pkg.vulns)
 				hasFix := anyFix(pkg.vulns)
@@ -259,6 +261,21 @@ h2 {
   padding-bottom: 8px;
   border-bottom: 2px solid #e5e7eb;
   color: #111;
+}
+
+h2.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.heading-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 2px 10px;
+  border-radius: 99px;
 }
 
 h3 {

@@ -66,6 +66,8 @@ func fetchLatest(runtime string) (string, error) {
 		v, err = fetchRust()
 	case "git":
 		v, err = fetchGit()
+	case "bun":
+		v, err = fetchBun()
 	default:
 		return "", nil
 	}
@@ -181,6 +183,28 @@ func fetchPHP() (string, error) {
 		return r.Version, nil
 	}
 	return "", fmt.Errorf("no stable php release found")
+}
+
+func fetchBun() (string, error) {
+	resp, err := client.Get("https://api.github.com/repos/oven-sh/bun/releases/latest")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", err
+	}
+	if release.TagName == "" {
+		return "", fmt.Errorf("no bun release found")
+	}
+	// tag is "bun-v1.2.3" → strip to "1.2.3"
+	v := strings.TrimPrefix(release.TagName, "bun-v")
+	v = strings.TrimPrefix(v, "v")
+	return v, nil
 }
 
 func fetchPython() (string, error) {

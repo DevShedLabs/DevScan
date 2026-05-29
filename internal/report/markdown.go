@@ -57,7 +57,9 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	p("")
 
 	// Vulnerabilities
-	p("## Vulnerabilities")
+	vs := r.Summary.Vulnerabilities
+	vulnTotal := vs.Critical + vs.High + vs.Medium + vs.Low
+	p("## Vulnerabilities (%d total)", vulnTotal)
 	p("")
 	if len(r.Vulnerabilities) == 0 {
 		p("No vulnerabilities found.")
@@ -79,8 +81,8 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 			for _, pkg := range vulns {
 				p("#### `%s@%s` — %s", pkg.name, pkg.version, pkg.ecosystem)
 				p("")
-				if pkg.path != "" {
-					p("**Path:** `%s`  ", pkg.path)
+				for _, path := range pkg.paths {
+					p("**Path:** `%s`  ", path)
 				}
 				p("")
 				hasFixed := anyFixedIn(pkg.vulns)
@@ -163,12 +165,11 @@ type pkgGroup struct {
 	name      string
 	version   string
 	ecosystem string
-	path      string
+	paths     []string
 	vulns     []schema.Vulnerability
 }
 
 func groupBySeverity(vulns []schema.Vulnerability) map[schema.Severity][]pkgGroup {
-	// First group by package
 	type key struct{ eco, name, version string }
 	order := []key{}
 	groups := map[key]*pkgGroup{}
@@ -181,6 +182,7 @@ func groupBySeverity(vulns []schema.Vulnerability) map[schema.Severity][]pkgGrou
 				name:      v.Package,
 				version:   v.InstalledVersion,
 				ecosystem: v.Ecosystem,
+				paths:     v.Paths,
 			}
 		}
 		groups[k].vulns = append(groups[k].vulns, v)

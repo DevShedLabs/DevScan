@@ -64,6 +64,7 @@ type Vulnerability struct {
 	Package          string   `json:"package"`
 	Ecosystem        string   `json:"ecosystem"`
 	InstalledVersion string   `json:"installed_version"`
+	Paths            []string `json:"paths,omitempty"`
 	Severity         Severity `json:"severity"`
 	Title            string   `json:"title"`
 	Description      string   `json:"description,omitempty"`

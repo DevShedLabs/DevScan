@@ -44,6 +44,7 @@ func RunAll(detectors []Detector) []schema.Runtime {
 func All() []Detector {
 	return []Detector{
 		&NodeDetector{},
+		&BunDetector{},
 		&PythonDetector{},
 		&GitDetector{},
 		&PHPDetector{},
