@@ -47,6 +47,7 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	p("| High vulnerabilities | %d |", r.Summary.Vulnerabilities.High)
 	p("| Medium vulnerabilities | %d |", r.Summary.Vulnerabilities.Medium)
 	p("| Low vulnerabilities | %d |", r.Summary.Vulnerabilities.Low)
+	p("| Unknown severity | %d |", r.Summary.Vulnerabilities.Unknown)
 	p("| Scan duration | %s |", formatDuration(r.Meta.DurationMs))
 	p("")
 

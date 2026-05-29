@@ -90,6 +90,7 @@ type VulnSummary struct {
 	High     int `json:"high"`
 	Medium   int `json:"medium"`
 	Low      int `json:"low"`
+	Unknown  int `json:"unknown"`
 }
 
 type Summary struct {
@@ -124,6 +125,8 @@ func (r *Report) ComputeSummary() {
 			r.Summary.Vulnerabilities.Medium++
 		case SeverityLow:
 			r.Summary.Vulnerabilities.Low++
+		default:
+			r.Summary.Vulnerabilities.Unknown++
 		}
 	}
 }

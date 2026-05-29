@@ -59,9 +59,7 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	fmt.Fprintf(w, "  <div class=\"card high\"><div class=\"card-value\">%d</div><div class=\"card-label\">High</div></div>\n", s.Vulnerabilities.High)
 	fmt.Fprintf(w, "  <div class=\"card medium\"><div class=\"card-value\">%d</div><div class=\"card-label\">Medium</div></div>\n", s.Vulnerabilities.Medium)
 	fmt.Fprintf(w, "  <div class=\"card low\"><div class=\"card-value\">%d</div><div class=\"card-label\">Low</div></div>\n", s.Vulnerabilities.Low)
-	// Outdated has always been 0 so no reason to show it.
-	//fmt.Fprintf(w, "  <div class=\"card\"><div class=\"card-value\">%d</div><div class=\"card-label\">Outdated</div></div>\n", s.Outdated)
-	fmt.Fprintf(w, "  <div class=\"card\"><div class=\"card-value\">%s</div><div class=\"card-label\">Scan Duration</div></div>\n", formatDuration(r.Meta.DurationMs))
+	fmt.Fprintf(w, "  <div class=\"card unknown\"><div class=\"card-value\">%d</div><div class=\"card-label\">Unknown</div></div>\n", s.Vulnerabilities.Unknown)
 	p(`</section>`)
 
 	// Runtimes
@@ -307,6 +305,7 @@ h3 {
 .card.high     .card-value { color: #ea580c; }
 .card.medium   .card-value { color: #ca8a04; }
 .card.low      .card-value { color: #16a34a; }
+.card.unknown  .card-value { color: #6b7280; }
 
 table {
   width: 100%;
