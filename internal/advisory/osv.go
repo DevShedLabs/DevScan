@@ -429,6 +429,14 @@ func upgradeCommand(pkg schema.Package, fixedIn string) string {
 		return fmt.Sprintf("npm install %s@^%s", pkg.Name, fixedIn)
 	case "pypi":
 		return fmt.Sprintf("pip install --upgrade %s>=%s", pkg.Name, fixedIn)
+	case "packagist":
+		return fmt.Sprintf("composer require %s:^%s", pkg.Name, fixedIn)
+	case "crates.io":
+		return fmt.Sprintf("cargo update -p %s --precise %s", pkg.Name, fixedIn)
+	case "go":
+		return fmt.Sprintf("go get %s@v%s", pkg.Name, fixedIn)
+	case "gem":
+		return fmt.Sprintf("gem update %s", pkg.Name)
 	default:
 		return ""
 	}
