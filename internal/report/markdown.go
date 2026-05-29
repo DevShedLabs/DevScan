@@ -20,7 +20,20 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	if r.Meta.Path != "" {
 		p("**Path:** `%s`  ", r.Meta.Path)
 	}
-	p("**Scan duration:** %dms  ", r.Meta.DurationMs)
+	p("**Scan duration:** %s  ", formatDuration(r.Meta.DurationMs))
+	if r.Meta.OS != "" {
+		osLine := r.Meta.OS
+		if r.Meta.OSVersion != "" {
+			osLine += " " + r.Meta.OSVersion
+		}
+		p("**OS:** %s  ", osLine)
+	}
+	if r.Meta.Chip != "" {
+		p("**Chip:** %s  ", r.Meta.Chip)
+	}
+	if r.Meta.Arch != "" {
+		p("**Arch:** %s  ", r.Meta.Arch)
+	}
 	p("")
 
 	// Summary

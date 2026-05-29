@@ -27,6 +27,10 @@ type Meta struct {
 	Target     string    `json:"target"`
 	Path       string    `json:"path,omitempty"`
 	DurationMs int64     `json:"duration_ms"`
+	OS         string    `json:"os,omitempty"`
+	OSVersion  string    `json:"os_version,omitempty"`
+	Arch       string    `json:"arch,omitempty"`
+	Chip       string    `json:"chip,omitempty"`
 }
 
 type Runtime struct {

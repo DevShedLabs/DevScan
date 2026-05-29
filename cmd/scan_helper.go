@@ -9,6 +9,7 @@ import (
 	"github.com/DevShedLabs/devscan/internal/detectors"
 	"github.com/DevShedLabs/devscan/internal/inspectors"
 	"github.com/DevShedLabs/devscan/internal/schema"
+	"github.com/DevShedLabs/devscan/internal/sysinfo"
 	"github.com/DevShedLabs/devscan/internal/traverse"
 	"github.com/DevShedLabs/devscan/internal/versions"
 	"github.com/spf13/cobra"
@@ -81,12 +82,17 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 func runFullScan(opts scanOptions) (*schema.Report, error) {
 	start := time.Now()
 
+	sys := sysinfo.Collect()
 	report := &schema.Report{
 		Meta: schema.Meta{
 			Version:   "0.1.0",
 			Timestamp: start,
 			Target:    opts.scope,
 			Path:      opts.path,
+			OS:        sys.OS,
+			OSVersion: sys.OSVersion,
+			Arch:      sys.Arch,
+			Chip:      sys.Chip,
 		},
 		System: map[string]string{},
 	}
