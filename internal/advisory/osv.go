@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	osvBatchURL  = "https://api.osv.dev/v1/querybatch"
-	osvVulnURL   = "https://api.osv.dev/v1/vulns/"
+	osvBatchURL   = "https://api.osv.dev/v1/querybatch"
+	osvVulnURL    = "https://api.osv.dev/v1/vulns/"
+	osvBatchLimit = 500
 )
 
 type Client struct {
@@ -146,6 +147,38 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		}
 	}
 
+	seen := map[string]bool{}
+	var vulns []schema.Vulnerability
+
+	// OSV batch API rejects requests above ~1000 packages; chunk to stay safe.
+	for start := 0; start < len(queries); start += osvBatchLimit {
+		end := start + osvBatchLimit
+		if end > len(queries) {
+			end = len(queries)
+		}
+		chunkQ := queries[start:end]
+		chunkP := queried[start:end]
+
+		chunkVulns, err := c.queryChunk(chunkQ, chunkP, seen)
+		if err != nil {
+			return nil, err
+		}
+		vulns = append(vulns, chunkVulns...)
+	}
+
+	// Enrich each vuln with full details (summary + severity) from /v1/vulns/{id}.
+	// The batch endpoint omits these fields; the detail endpoint returns them.
+	c.enrichVulns(vulns)
+
+	if !c.noCache {
+		c.saveCache(key, vulns)
+	}
+
+	return vulns, nil
+}
+
+// queryChunk sends one OSV batch request for up to osvBatchLimit packages.
+func (c *Client) queryChunk(queries []osvPackageQuery, queried []schema.Package, seen map[string]bool) ([]schema.Vulnerability, error) {
 	body, err := json.Marshal(osvQuery{Queries: queries})
 	if err != nil {
 		return nil, fmt.Errorf("advisory: marshal: %w", err)
@@ -166,7 +199,6 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		return nil, fmt.Errorf("advisory: decode: %w", err)
 	}
 
-	seen := map[string]bool{}
 	var vulns []schema.Vulnerability
 	for i, result := range batch.Results {
 		if i >= len(queried) {
@@ -174,13 +206,11 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 		}
 		pkg := queried[i]
 		for _, v := range result.Vulns {
-			// Deduplicate by vuln ID + package name + version so that the same
-			// advisory doesn't appear twice when a package is listed multiple times.
-			key := v.ID + "|" + pkg.Name + "|" + pkg.Version
-			if seen[key] {
+			dedupeKey := v.ID + "|" + pkg.Name + "|" + pkg.Version
+			if seen[dedupeKey] {
 				continue
 			}
-			seen[key] = true
+			seen[dedupeKey] = true
 
 			vuln := schema.Vulnerability{
 				ID:               v.ID,
@@ -207,15 +237,6 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 			vulns = append(vulns, vuln)
 		}
 	}
-
-	// Enrich each vuln with full details (summary + severity) from /v1/vulns/{id}.
-	// The batch endpoint omits these fields; the detail endpoint returns them.
-	c.enrichVulns(vulns)
-
-	if !c.noCache {
-		c.saveCache(key, vulns)
-	}
-
 	return vulns, nil
 }
 

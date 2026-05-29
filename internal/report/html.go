@@ -33,7 +33,7 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	if r.Meta.Path != "" {
 		p(`    <span>Path: <code>%s</code></span>`, html.EscapeString(r.Meta.Path))
 	}
-	p(`    <span>Scan time: %dms</span>`, r.Meta.DurationMs)
+	p(`    <span>Scan time: %s</span>`, formatDuration(r.Meta.DurationMs))
 	p(`  </div>`)
 	p(`</header>`)
 
