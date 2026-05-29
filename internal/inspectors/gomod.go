@@ -2,7 +2,9 @@ package inspectors
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
@@ -21,6 +23,12 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 	// Global go binaries aren't enumerable with versions — skip.
 	if scope == "global" {
 		return nil, nil
+	}
+
+	if path != "" {
+		if _, err := os.Stat(filepath.Join(path, "go.mod")); err != nil {
+			return nil, nil
+		}
 	}
 
 	cmd := exec.Command("go", "list", "-m", "-json", "all")

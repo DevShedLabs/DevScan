@@ -2,6 +2,7 @@ package inspectors
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,16 @@ func (i *NpmInspector) Name() string      { return "npm" }
 func (i *NpmInspector) Ecosystem() string { return "npm" }
 
 func (i *NpmInspector) Inspect(scope, path string) ([]schema.Package, error) {
+	if scope == "project" {
+		if path == "" {
+			return nil, nil
+		}
+		// Only run if this directory has a package.json.
+		if _, err := os.Stat(filepath.Join(path, "package.json")); err != nil {
+			return nil, nil
+		}
+	}
+
 	args := []string{"list", "--json", "--depth=0"}
 	if scope == "global" {
 		args = append(args, "--global")
@@ -64,7 +75,11 @@ func (i *NpmInspector) Inspect(scope, path string) ([]schema.Package, error) {
 
 func npmModulesRoot(scope, projectPath string) string {
 	if scope == "project" && projectPath != "" {
-		return filepath.Join(projectPath, "node_modules")
+		p := filepath.Join(projectPath, "node_modules")
+		if _, err := os.Stat(p); err != nil {
+			return ""
+		}
+		return p
 	}
 	out, err := exec.Command("npm", "root", "-g").Output()
 	if err != nil {

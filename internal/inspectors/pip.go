@@ -22,11 +22,13 @@ func (i *PipInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		}
 	}
 
+	// pip always reports global/system packages regardless of cwd — only run once.
+	if scope == "project" {
+		return nil, nil
+	}
+
 	// -v adds the "location" field (install directory) to JSON output.
 	cmd := exec.Command(binary, "list", "-v", "--format=json")
-	if scope == "project" && path != "" {
-		cmd.Dir = path
-	}
 
 	out, err := cmd.Output()
 	if err != nil {
