@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DevShedLabs/devscan/internal/advisory"
@@ -43,9 +44,24 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 	return scanOptions{scope: scope, path: path, depth: depth, noCache: noCache}
 }
 
+// languageEcosystems are the language-native ecosystems that take priority over
+// homebrew when the same package name appears in both. Homebrew installs many
+// Python/Ruby/etc. packages as formulae, but OSV covers them better under their
+// native ecosystem.
+var languageEcosystems = map[string]bool{
+	"pypi":      true,
+	"npm":       true,
+	"gem":       true,
+	"go":        true,
+	"crates.io": true,
+	"packagist": true,
+}
+
 // deduplicatePackages collapses packages with the same ecosystem+name+version
-// into one entry, merging all distinct paths. The returned packages are unique
-// by identity; the path index maps each identity key to all known paths.
+// into one entry, merging all distinct paths. Where the same package name exists
+// in both homebrew and a language ecosystem, the language ecosystem wins.
+// The returned packages are unique by identity; the path index maps each
+// identity key to all known paths.
 func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[string][]string) {
 	type entry struct {
 		pkg   schema.Package
@@ -54,6 +70,7 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 	order := []string{}
 	entries := map[string]*entry{}
 
+	// First pass: build index keyed by ecosystem+name+version.
 	for _, p := range packages {
 		key := p.Ecosystem + "|" + p.Name + "|" + p.Version
 		if _, exists := entries[key]; !exists {
@@ -65,10 +82,24 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 		}
 	}
 
+	// Build a set of names covered by language-native ecosystems so we can
+	// suppress the homebrew duplicate.
+	nativeNames := map[string]bool{}
+	for _, key := range order {
+		e := entries[key]
+		if languageEcosystems[e.pkg.Ecosystem] {
+			nativeNames[strings.ToLower(e.pkg.Name)] = true
+		}
+	}
+
 	out := make([]schema.Package, 0, len(order))
 	pathIndex := make(map[string][]string, len(order))
 	for _, key := range order {
 		e := entries[key]
+		// Skip homebrew entries that are already covered by a language ecosystem.
+		if e.pkg.Ecosystem == "homebrew" && nativeNames[strings.ToLower(e.pkg.Name)] {
+			continue
+		}
 		out = append(out, e.pkg)
 		paths := make([]string, 0, len(e.paths))
 		for path := range e.paths {
