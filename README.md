@@ -12,6 +12,14 @@ Built with Go. Designed to be scriptable, CI-friendly, and extensible.
 go install github.com/DevShedLabs/devscan@latest
 ```
 
+Make sure `~/go/bin` is on your `$PATH`. Add this to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) if it isn't already:
+
+```bash
+export PATH="$HOME/go/bin:$PATH"
+```
+
+Then reload your shell (`source ~/.zshrc`) or open a new terminal.
+
 Or build from source:
 
 ```bash
