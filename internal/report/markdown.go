@@ -35,6 +35,7 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	p("| Medium vulnerabilities | %d |", r.Summary.Vulnerabilities.Medium)
 	p("| Low vulnerabilities | %d |", r.Summary.Vulnerabilities.Low)
 	p("| Outdated packages | %d |", r.Summary.Outdated)
+	p("| Scan duration | %s |", formatDuration(r.Meta.DurationMs))
 	p("")
 
 	// Runtimes
@@ -246,20 +247,3 @@ func joinStrings(ss []string, sep string) string {
 	return strings.Join(ss, sep)
 }
 
-func anyFixedIn(vulns []schema.Vulnerability) bool {
-	for _, v := range vulns {
-		if v.FixedIn != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func anyFix(vulns []schema.Vulnerability) bool {
-	for _, v := range vulns {
-		if v.Fix != nil && v.Fix.Command != "" {
-			return true
-		}
-	}
-	return false
-}

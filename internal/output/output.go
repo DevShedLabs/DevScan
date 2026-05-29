@@ -108,10 +108,11 @@ func renderJSON(w io.Writer, report *schema.Report) error {
 
 func renderCompact(w io.Writer, report *schema.Report) error {
 	s := report.Summary
-	fmt.Fprintf(w, "runtimes=%d packages=%d vulns=%d outdated=%d\n",
+	fmt.Fprintf(w, "runtimes=%d packages=%d vulns=%d outdated=%d duration=%s\n",
 		s.Runtimes, s.Packages,
 		s.Vulnerabilities.Critical+s.Vulnerabilities.High+s.Vulnerabilities.Medium+s.Vulnerabilities.Low,
 		s.Outdated,
+		formatDuration(report.Meta.DurationMs),
 	)
 	return nil
 }
@@ -175,6 +176,7 @@ func renderTable(w io.Writer, report *schema.Report) error {
 	fmt.Fprintf(tw, "  Packages scanned:\t%d\n", s.Packages)
 	fmt.Fprintf(tw, "  Vulnerable packages installed:\t%s\n", vulnSummaryLine(s.Vulnerabilities))
 	fmt.Fprintf(tw, "  Packages outdated:\t%d\n", s.Outdated)
+	fmt.Fprintf(tw, "  Scan duration:\t%s\n", formatDuration(report.Meta.DurationMs))
 
 	return tw.Flush()
 }
@@ -197,6 +199,20 @@ func vulnSummaryLine(v schema.VulnSummary) string {
 		return colorGreen + "none" + colorReset
 	}
 	return strings.Join(parts, ", ")
+}
+
+func formatDuration(ms int64) string {
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	secs := ms / 1000
+	ms = ms % 1000
+	if secs < 60 {
+		return fmt.Sprintf("%d.%ds", secs, ms/100)
+	}
+	mins := secs / 60
+	secs = secs % 60
+	return fmt.Sprintf("%dm %ds", mins, secs)
 }
 
 func bold(s string) string {

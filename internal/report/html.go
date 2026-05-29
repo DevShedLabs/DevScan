@@ -47,6 +47,7 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	fmt.Fprintf(w, "  <div class=\"card medium\"><div class=\"card-value\">%d</div><div class=\"card-label\">Medium</div></div>\n", s.Vulnerabilities.Medium)
 	fmt.Fprintf(w, "  <div class=\"card low\"><div class=\"card-value\">%d</div><div class=\"card-label\">Low</div></div>\n", s.Vulnerabilities.Low)
 	fmt.Fprintf(w, "  <div class=\"card\"><div class=\"card-value\">%d</div><div class=\"card-label\">Outdated</div></div>\n", s.Outdated)
+	fmt.Fprintf(w, "  <div class=\"card\"><div class=\"card-value\">%s</div><div class=\"card-label\">Scan Duration</div></div>\n", formatDuration(r.Meta.DurationMs))
 	p(`</section>`)
 
 	// Runtimes
@@ -242,7 +243,7 @@ header {
 }
 
 .meta strong { color: #fff; }
-.meta code { color: #7dd3fc; }
+.meta code { color: #93c5fd; background: rgba(255,255,255,0.1); }
 
 section {
   max-width: 1100px;

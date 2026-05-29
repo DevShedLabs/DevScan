@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/DevShedLabs/devscan/internal/detectors"
 	"github.com/DevShedLabs/devscan/internal/inspectors"
 	"github.com/DevShedLabs/devscan/internal/schema"
+	"github.com/DevShedLabs/devscan/internal/traverse"
 	"github.com/DevShedLabs/devscan/internal/versions"
 	"github.com/spf13/cobra"
 )
@@ -15,6 +17,7 @@ import (
 type scanOptions struct {
 	scope   string // "global" | "project"
 	path    string
+	depth   int
 	noCache bool
 }
 
@@ -23,6 +26,7 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 	global, _ := cmd.Flags().GetBool("global")
 	path, _ := cmd.Flags().GetString("path")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
+	depth, _ := cmd.Flags().GetInt("depth")
 
 	scope := "global"
 	if project || path != "" {
@@ -35,7 +39,7 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 		path = cwd
 	}
 
-	return scanOptions{scope: scope, path: path, noCache: noCache}
+	return scanOptions{scope: scope, path: path, depth: depth, noCache: noCache}
 }
 
 func deduplicatePackages(packages []schema.Package) []schema.Package {
@@ -69,8 +73,16 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 	report.Runtimes = detectors.RunAll(detectors.All())
 	versions.Enrich(report.Runtimes)
 
-	// Inspect packages
-	report.Packages = deduplicatePackages(inspectors.RunAll(inspectors.All(), opts.scope, opts.path))
+	// Collect project paths to scan
+	paths := projectPaths(opts)
+
+	// Inspect packages across all paths
+	var allPackages []schema.Package
+	for _, p := range paths {
+		pkgs := inspectors.RunAll(inspectors.All(), opts.scope, p)
+		allPackages = append(allPackages, pkgs...)
+	}
+	report.Packages = deduplicatePackages(allPackages)
 
 	// Query advisories
 	client := advisory.NewClient(opts.noCache)
@@ -83,4 +95,20 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 	report.ComputeSummary()
 
 	return report, nil
+}
+
+// projectPaths returns the list of directories to inspect based on scope and depth.
+func projectPaths(opts scanOptions) []string {
+	if opts.scope == "global" {
+		return []string{""}
+	}
+	if opts.depth <= 0 {
+		return []string{opts.path}
+	}
+	projects := traverse.FindProjects(opts.path, opts.depth)
+	if len(projects) == 0 {
+		return []string{opts.path}
+	}
+	fmt.Fprintf(os.Stderr, "Found %d project(s) under %s\n", len(projects), opts.path)
+	return projects
 }
