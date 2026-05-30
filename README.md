@@ -49,6 +49,9 @@ go build -o devscan .
 ## Usage
 
 ```bash
+# Get the version you have installed
+devscan --version
+
 # Full health report
 devscan doctor
 
