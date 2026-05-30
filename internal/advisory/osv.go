@@ -106,6 +106,9 @@ func (c *Client) QueryPackages(packages []schema.Package) ([]schema.Vulnerabilit
 	queries := make([]osvPackageQuery, 0, len(packages))
 	queried := make([]schema.Package, 0, len(packages))
 	for _, p := range packages {
+		if p.Version == "" {
+			continue
+		}
 		eco, ok := osvEcosystem[p.Ecosystem]
 		if !ok {
 			continue
