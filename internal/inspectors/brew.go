@@ -17,11 +17,12 @@ func (i *BrewInspector) Name() string      { return "brew" }
 func (i *BrewInspector) Ecosystem() string { return "homebrew" }
 
 // brewNameMap translates Homebrew formula names to Bitnami OSV names where they differ.
+// Only include mappings where the formula and OSV package are truly equivalent —
+// libpq is the PostgreSQL client library, not the server, so it is intentionally excluded.
 var brewNameMap = map[string]string{
-	"httpd":          "apache",
-	"libpq":          "postgresql",
-	"mariadb":        "mariadb",
-	"mysql-client":   "mysql",
+	"httpd":        "apache",
+	"mariadb":      "mariadb",
+	"mysql-client": "mysql",
 }
 
 // brewSkip are packages already covered by language-specific inspectors (pip, npm, etc.)
@@ -94,8 +95,8 @@ func (i *BrewInspector) Inspect(scope, path string) ([]schema.Package, error) {
 			continue
 		}
 
-		// Brew lists all installed versions; take the last (most recent).
-		rawVersion := fields[len(fields)-1]
+		// Brew lists all installed versions; pick the highest.
+		rawVersion := highestBrewVersion(fields[1:])
 		version := stripBrewRevision(rawVersion)
 
 		// Map to Bitnami name if needed.
@@ -114,6 +115,48 @@ func (i *BrewInspector) Inspect(scope, path string) ([]schema.Package, error) {
 	}
 
 	return packages, nil
+}
+
+// highestBrewVersion picks the highest semver from a list of version strings.
+func highestBrewVersion(versions []string) string {
+	best := versions[0]
+	for _, v := range versions[1:] {
+		if brewVerGT(v, best) {
+			best = v
+		}
+	}
+	return best
+}
+
+func brewVerGT(a, b string) bool {
+	ap := parseBrewVer(a)
+	bp := parseBrewVer(b)
+	for i := range ap {
+		if ap[i] != bp[i] {
+			return ap[i] > bp[i]
+		}
+	}
+	return false
+}
+
+func parseBrewVer(v string) [4]int {
+	// Strip revision suffix "1.2.3_4" → split on "_"
+	v = strings.Split(v, "_")[0]
+	var a, b, c, d int
+	parts := strings.Split(v, ".")
+	if len(parts) >= 1 {
+		fmt.Sscanf(parts[0], "%d", &a)
+	}
+	if len(parts) >= 2 {
+		fmt.Sscanf(parts[1], "%d", &b)
+	}
+	if len(parts) >= 3 {
+		fmt.Sscanf(parts[2], "%d", &c)
+	}
+	if len(parts) >= 4 {
+		fmt.Sscanf(parts[3], "%d", &d)
+	}
+	return [4]int{a, b, c, d}
 }
 
 // stripBrewRevision removes Homebrew's _N revision suffix: "9.5.0_3" → "9.5.0".

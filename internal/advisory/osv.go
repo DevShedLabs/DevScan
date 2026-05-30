@@ -425,17 +425,22 @@ func extractFixed(affected []osvAffected) string {
 }
 
 func upgradeCommand(pkg schema.Package, fixedIn string) string {
+	// Use the actual latest published version rather than the OSV minimum-fixed version.
+	target := fetchLatestPackageVersion(pkg.Ecosystem, pkg.Name)
+	if target == "" {
+		target = fixedIn
+	}
 	switch pkg.Ecosystem {
 	case "npm":
-		return fmt.Sprintf("npm install %s@^%s", pkg.Name, fixedIn)
+		return fmt.Sprintf("npm install %s@%s", pkg.Name, target)
 	case "pypi":
-		return fmt.Sprintf("pip install --upgrade %s>=%s", pkg.Name, fixedIn)
+		return fmt.Sprintf("pip install --upgrade %s==%s", pkg.Name, target)
 	case "packagist":
-		return fmt.Sprintf("composer require %s:^%s", pkg.Name, fixedIn)
+		return fmt.Sprintf("composer require %s:%s", pkg.Name, target)
 	case "crates.io":
-		return fmt.Sprintf("cargo update -p %s --precise %s", pkg.Name, fixedIn)
+		return fmt.Sprintf("cargo update -p %s --precise %s", pkg.Name, target)
 	case "go":
-		return fmt.Sprintf("go get %s@v%s", pkg.Name, fixedIn)
+		return fmt.Sprintf("go get %s@v%s", pkg.Name, target)
 	case "gem":
 		return fmt.Sprintf("gem update %s", pkg.Name)
 	default:
