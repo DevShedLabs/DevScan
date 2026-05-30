@@ -1,4 +1,4 @@
-# devscan
+# DevScan
 
 A developer environment security and health scanner. Detects runtimes, inspects installed packages, and surfaces known vulnerabilities and outdated dependencies — across your global environment or a specific project.
 
