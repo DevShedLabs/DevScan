@@ -3,10 +3,18 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+func buildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "devscan",
@@ -24,6 +32,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Version = buildVersion()
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().String("format", "table", "Output format: table|json|compact")
