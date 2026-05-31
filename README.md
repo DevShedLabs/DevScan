@@ -99,6 +99,10 @@ devscan report --html --output report.html --path ./my-app
 
 # Traverse sub-projects
 devscan report --html --output report.html --path ./my-app --depth 2
+
+# Clean public reports
+devscan report --path ./  --md --output security-report.md --public
+
 ```
 
 Reports include:
@@ -123,6 +127,7 @@ Reports include:
 --depth int          Traverse subdirectories up to this depth (0 = path only)
 --no-color           Disable color output
 --no-cache           Bypass cache and force a fresh advisory lookup
+--public             Removes data not needed for public view, eg. repo
 -o, --output string  Write report to file (report command only)
 ```
 

@@ -20,6 +20,7 @@ var reportCmd = &cobra.Command{
 		md, _ := cmd.Flags().GetBool("md")
 		jsonFmt, _ := cmd.Flags().GetBool("json")
 		outputFile, _ := cmd.Flags().GetString("output")
+		public, _ := cmd.Flags().GetBool("public")
 
 		// Default to markdown if nothing specified
 		format := report.FormatMarkdown
@@ -48,7 +49,7 @@ var reportCmd = &cobra.Command{
 			out = f
 		}
 
-		if err := report.Render(out, r, format); err != nil {
+		if err := report.Render(out, r, format, report.Options{Public: public}); err != nil {
 			return err
 		}
 
@@ -64,5 +65,6 @@ func init() {
 	reportCmd.Flags().Bool("md", false, "Generate Markdown report")
 	reportCmd.Flags().Bool("json", false, "Generate JSON report")
 	reportCmd.Flags().StringP("output", "o", "", "Write report to file instead of stdout")
+	reportCmd.Flags().Bool("public", false, "Strip internal paths and package inventory for public sharing")
 	rootCmd.AddCommand(reportCmd)
 }
