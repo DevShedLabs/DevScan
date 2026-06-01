@@ -1,7 +1,6 @@
 package inspectors
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,44 +70,76 @@ func (i *CargoInspector) inspectGlobal() ([]schema.Package, error) {
 }
 
 func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
-	cmd := exec.Command("cargo", "metadata", "--format-version=1", "--no-deps")
-	if path != "" {
-		cmd.Dir = path
+	if path == "" {
+		return nil, nil
 	}
+	if _, err := os.Stat(filepath.Join(path, "Cargo.toml")); err != nil {
+		return nil, nil
+	}
+	return inspectCargoLock(path)
+}
 
-	out, err := cmd.Output()
+// inspectCargoLock parses Cargo.lock for the full resolved dependency tree.
+// Cargo.lock is TOML but we can parse it with a simple line scanner since
+// the structure is regular: [[package]] sections with name/version/source fields.
+func inspectCargoLock(path string) ([]schema.Package, error) {
+	lockPath := filepath.Join(path, "Cargo.lock")
+	data, err := os.ReadFile(lockPath)
 	if err != nil {
 		return nil, nil
 	}
 
-	var meta struct {
-		Packages []struct {
-			Name         string `json:"name"`
-			Version      string `json:"version"`
-			Source       string `json:"source"`
-			ManifestPath string `json:"manifest_path"`
-		} `json:"packages"`
+	var packages []schema.Package
+	var curName, curVersion, curSource string
+
+	flush := func() {
+		if curName != "" && curVersion != "" && curSource != "" {
+			packages = append(packages, schema.Package{
+				Name:      curName,
+				Version:   curVersion,
+				Ecosystem: "crates.io",
+				Scope:     "project",
+				Direct:    true,
+				Path:      lockPath,
+			})
+		}
+		curName, curVersion, curSource = "", "", ""
 	}
 
-	if err := json.Unmarshal(out, &meta); err != nil {
-		return nil, err
-	}
-
-	packages := make([]schema.Package, 0, len(meta.Packages))
-	for _, p := range meta.Packages {
-		if p.Source == "" {
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "[[package]]" {
+			flush()
 			continue
 		}
-		packages = append(packages, schema.Package{
-			Name:      p.Name,
-			Version:   p.Version,
-			Ecosystem: "crates.io",
-			Scope:     "project",
-			Direct:    true,
-			Path:      filepath.Dir(p.ManifestPath),
-		})
+		if k, v, ok := parseTomlString(line); ok {
+			switch k {
+			case "name":
+				curName = v
+			case "version":
+				curVersion = v
+			case "source":
+				curSource = v
+			}
+		}
 	}
+	flush()
+
 	return packages, nil
+}
+
+// parseTomlString parses a TOML line of the form: key = "value"
+func parseTomlString(line string) (key, value string, ok bool) {
+	eq := strings.Index(line, " = ")
+	if eq < 0 {
+		return "", "", false
+	}
+	key = strings.TrimSpace(line[:eq])
+	val := strings.TrimSpace(line[eq+3:])
+	if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
+		return key, val[1 : len(val)-1], true
+	}
+	return "", "", false
 }
 
 // parseCargoListLine parses a line like:
