@@ -49,13 +49,14 @@ type PackageManager struct {
 }
 
 type Package struct {
-	Name      string `json:"name"`
-	Version   string `json:"version"`
-	Latest    string `json:"latest,omitempty"`
-	Ecosystem string `json:"ecosystem"`
-	Scope     string `json:"scope"` // global | project
-	Direct    bool   `json:"direct"`
-	Path      string `json:"path,omitempty"`
+	Name      string   `json:"name"`
+	Version   string   `json:"version"`
+	Latest    string   `json:"latest,omitempty"`
+	Ecosystem string   `json:"ecosystem"`
+	Scope     string   `json:"scope"` // global | project
+	Direct    bool     `json:"direct"`
+	Path      string   `json:"path,omitempty"`
+	Parents   []string `json:"parents,omitempty"` // packages that pulled this in as a transitive dep
 }
 
 type Fix struct {
@@ -69,6 +70,7 @@ type Vulnerability struct {
 	Ecosystem        string   `json:"ecosystem"`
 	InstalledVersion string   `json:"installed_version"`
 	Paths            []string `json:"paths,omitempty"`
+	Parents          []string `json:"parents,omitempty"` // direct packages that pulled this in
 	Severity         Severity `json:"severity"`
 	Title            string   `json:"title"`
 	Description      string   `json:"description,omitempty"`

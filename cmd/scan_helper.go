@@ -62,10 +62,11 @@ var languageEcosystems = map[string]bool{
 // in both homebrew and a language ecosystem, the language ecosystem wins.
 // The returned packages are unique by identity; the path index maps each
 // identity key to all known paths.
-func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[string][]string) {
+func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[string][]string, map[string][]string) {
 	type entry struct {
-		pkg   schema.Package
-		paths map[string]bool
+		pkg     schema.Package
+		paths   map[string]bool
+		parents map[string]bool
 	}
 	order := []string{}
 	entries := map[string]*entry{}
@@ -75,10 +76,13 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 		key := p.Ecosystem + "|" + p.Name + "|" + p.Version
 		if _, exists := entries[key]; !exists {
 			order = append(order, key)
-			entries[key] = &entry{pkg: p, paths: map[string]bool{}}
+			entries[key] = &entry{pkg: p, paths: map[string]bool{}, parents: map[string]bool{}}
 		}
 		if p.Path != "" {
 			entries[key].paths[p.Path] = true
+		}
+		for _, parent := range p.Parents {
+			entries[key].parents[parent] = true
 		}
 	}
 
@@ -94,9 +98,9 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 
 	out := make([]schema.Package, 0, len(order))
 	pathIndex := make(map[string][]string, len(order))
+	parentIndex := make(map[string][]string, len(order))
 	for _, key := range order {
 		e := entries[key]
-		// Skip homebrew entries that are already covered by a language ecosystem.
 		if e.pkg.Ecosystem == "homebrew" && nativeNames[strings.ToLower(e.pkg.Name)] {
 			continue
 		}
@@ -106,8 +110,13 @@ func deduplicatePackages(packages []schema.Package) ([]schema.Package, map[strin
 			paths = append(paths, path)
 		}
 		pathIndex[key] = paths
+		parents := make([]string, 0, len(e.parents))
+		for parent := range e.parents {
+			parents = append(parents, parent)
+		}
+		parentIndex[key] = parents
 	}
-	return out, pathIndex
+	return out, pathIndex, parentIndex
 }
 
 func runFullScan(opts scanOptions) (*schema.Report, error) {
@@ -144,17 +153,18 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 		pkgs := inspectors.RunAll(inspectors.All(), opts.scope, p)
 		allPackages = append(allPackages, pkgs...)
 	}
-	pkgs, pathIndex := deduplicatePackages(allPackages)
+	pkgs, pathIndex, parentIndex := deduplicatePackages(allPackages)
 	report.Packages = pkgs
 
 	// Query advisories
 	client := advisory.NewClient(opts.noCache)
 	vulns, err := client.QueryPackages(report.Packages)
 	if err == nil {
-		// Attach all known install paths to each vulnerability.
+		// Attach all known install paths and parent packages to each vulnerability.
 		for i, v := range vulns {
 			key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
 			vulns[i].Paths = pathIndex[key]
+			vulns[i].Parents = parentIndex[key]
 		}
 		report.Vulnerabilities = vulns
 	}

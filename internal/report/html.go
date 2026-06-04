@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
@@ -132,6 +133,13 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 				p(`      <span class="pkg-name"><code>%s@%s</code></span>`, html.EscapeString(pkg.name), html.EscapeString(pkg.version))
 				p(`      <span class="ecosystem">%s</span>`, html.EscapeString(pkg.ecosystem))
 				p(`    </div>`)
+				if len(pkg.parents) > 0 {
+					escaped := make([]string, len(pkg.parents))
+					for i, parent := range pkg.parents {
+						escaped[i] = "<code>" + html.EscapeString(parent) + "</code>"
+					}
+					p(`    <div class="vuln-parents">Installed by: %s</div>`, strings.Join(escaped, ", "))
+				}
 				for _, path := range pkg.paths {
 					p(`    <div class="vuln-path">📂 <code>%s</code></div>`, html.EscapeString(path))
 				}
@@ -369,6 +377,14 @@ a:hover { text-decoration: underline; }
 
 .pkg-name code { font-size: 13px; font-weight: 600; background: none; padding: 0; }
 .ecosystem { font-size: 11px; color: #6b7280; background: #e5e7eb; padding: 2px 8px; border-radius: 99px; }
+
+.vuln-parents {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #6b7280;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+}
 
 .vuln-path {
   padding: 8px 16px;

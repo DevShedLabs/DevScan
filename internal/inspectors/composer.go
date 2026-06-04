@@ -80,26 +80,80 @@ func inspectComposerLock(path string) ([]schema.Package, error) {
 	}
 
 	vendorDir := filepath.Join(path, "vendor")
+	all := append(lock.Packages, lock.PackagesDev...)
+
+	// Build reverse dep map: child → list of parents that require it.
+	// Read direct deps from composer.json to identify top-level packages.
+	directDeps := composerDirectDeps(path)
+	reverseDeps := make(map[string][]string)
+	for _, p := range all {
+		for dep := range p.Require {
+			if !isComposerPlatformReq(dep) {
+				reverseDeps[dep] = append(reverseDeps[dep], p.Name)
+			}
+		}
+	}
 
 	var packages []schema.Package
-	for _, p := range append(lock.Packages, lock.PackagesDev...) {
+	for _, p := range all {
 		pkgPath := filepath.Join(vendorDir, p.Name)
 		if _, err := os.Stat(pkgPath); err != nil {
 			pkgPath = ""
 		}
+		parents := reverseDeps[p.Name]
+		_, isDirect := directDeps[p.Name]
 		packages = append(packages, schema.Package{
 			Name:      p.Name,
 			Version:   strings.TrimPrefix(p.Version, "v"),
 			Ecosystem: "packagist",
 			Scope:     "project",
-			Direct:    true,
+			Direct:    isDirect,
 			Path:      pkgPath,
+			Parents:   parents,
 		})
 	}
 	return packages, nil
 }
 
+// composerDirectDeps reads composer.json and returns the set of directly required packages.
+func composerDirectDeps(path string) map[string]bool {
+	f, err := os.Open(filepath.Join(path, "composer.json"))
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var cj struct {
+		Require    map[string]string `json:"require"`
+		RequireDev map[string]string `json:"require-dev"`
+	}
+	if err := json.NewDecoder(f).Decode(&cj); err != nil {
+		return nil
+	}
+	deps := make(map[string]bool)
+	for k := range cj.Require {
+		if !isComposerPlatformReq(k) {
+			deps[k] = true
+		}
+	}
+	for k := range cj.RequireDev {
+		if !isComposerPlatformReq(k) {
+			deps[k] = true
+		}
+	}
+	return deps
+}
+
+// isComposerPlatformReq returns true for php/ext-*/lib-* requirements which are
+// platform constraints, not installable packages.
+func isComposerPlatformReq(name string) bool {
+	return name == "php" || name == "composer-runtime-api" ||
+		strings.HasPrefix(name, "ext-") ||
+		strings.HasPrefix(name, "lib-") ||
+		strings.HasPrefix(name, "php-")
+}
+
 type composerLockPkg struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	Require map[string]string `json:"require"`
 }

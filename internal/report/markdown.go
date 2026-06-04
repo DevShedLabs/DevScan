@@ -106,6 +106,9 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 			for _, pkg := range vulns {
 				p("#### `%s@%s` — %s", pkg.name, pkg.version, pkg.ecosystem)
 				p("")
+				if len(pkg.parents) > 0 {
+					p("**Installed by:** %s  ", joinBackticks(pkg.parents))
+				}
 				for _, path := range pkg.paths {
 					p("**Path:** `%s`  ", path)
 				}
@@ -177,6 +180,7 @@ type pkgGroup struct {
 	version   string
 	ecosystem string
 	paths     []string
+	parents   []string
 	vulns     []schema.Vulnerability
 }
 
@@ -194,6 +198,7 @@ func groupBySeverity(vulns []schema.Vulnerability) map[schema.Severity][]pkgGrou
 				version:   v.InstalledVersion,
 				ecosystem: v.Ecosystem,
 				paths:     v.Paths,
+				parents:   v.Parents,
 			}
 		}
 		groups[k].vulns = append(groups[k].vulns, v)
@@ -258,5 +263,13 @@ func severityBadge(s schema.Severity) string {
 
 func joinStrings(ss []string, sep string) string {
 	return strings.Join(ss, sep)
+}
+
+func joinBackticks(ss []string) string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = "`" + s + "`"
+	}
+	return strings.Join(out, ", ")
 }
 

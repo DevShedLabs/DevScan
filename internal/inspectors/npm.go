@@ -83,8 +83,10 @@ func inspectPackageLock(path string) ([]schema.Package, error) {
 		LockfileVersion int `json:"lockfileVersion"`
 		// v2/v3: packages map keyed by "node_modules/name" or "node_modules/a/node_modules/b"
 		Packages map[string]struct {
-			Version string `json:"version"`
-			Dev     bool   `json:"dev"`
+			Version              string            `json:"version"`
+			Dev                  bool              `json:"dev"`
+			Dependencies         map[string]string `json:"dependencies"`
+			OptionalDependencies map[string]string `json:"optionalDependencies"`
 		} `json:"packages"`
 		// v1: dependencies map keyed by package name
 		Dependencies map[string]struct {
@@ -104,12 +106,35 @@ func inspectPackageLock(path string) ([]schema.Package, error) {
 	var packages []schema.Package
 
 	if lock.LockfileVersion >= 2 && len(lock.Packages) > 0 {
+		// Build reverse dep map: child name → list of direct parent names.
+		// A parent is a top-level node_modules entry (no nested path) that lists the child.
+		reverseDeps := make(map[string][]string)
+		for key, pkg := range lock.Packages {
+			if key == "" {
+				continue
+			}
+			parentName := packageNameFromKey(key)
+			// Only map from top-level entries to avoid deeply nested duplicates
+			if strings.Count(key, "node_modules/") != 1 {
+				continue
+			}
+			allDeps := make(map[string]string)
+			for k, v := range pkg.Dependencies {
+				allDeps[k] = v
+			}
+			for k, v := range pkg.OptionalDependencies {
+				allDeps[k] = v
+			}
+			for childName := range allDeps {
+				reverseDeps[childName] = append(reverseDeps[childName], parentName)
+			}
+		}
+
 		// v2/v3 format: keys are "node_modules/foo" or "node_modules/foo/node_modules/bar"
 		for key, pkg := range lock.Packages {
 			if key == "" || pkg.Version == "" {
 				continue // root package entry
 			}
-			// Extract the package name from the key: last "node_modules/<name>" segment
 			name := packageNameFromKey(key)
 			if name == "" {
 				continue
@@ -118,17 +143,22 @@ func inspectPackageLock(path string) ([]schema.Package, error) {
 			if modulesRoot != "" {
 				pkgPath = filepath.Join(path, key)
 			}
+			// A package is direct if it appears as a top-level node_modules entry
+			// and has no parents in the reverse map (i.e. nothing pulled it in).
+			isTopLevel := strings.Count(key, "node_modules/") == 1
+			parents := reverseDeps[name]
 			packages = append(packages, schema.Package{
 				Name:      name,
 				Version:   pkg.Version,
 				Ecosystem: "npm",
 				Scope:     "project",
-				Direct:    !pkg.Dev,
+				Direct:    isTopLevel && len(parents) == 0,
 				Path:      pkgPath,
+				Parents:   parents,
 			})
 		}
 	} else if len(lock.Dependencies) > 0 {
-		// v1 format
+		// v1 format — no dependency graph available
 		for name, dep := range lock.Dependencies {
 			pkgPath := ""
 			if modulesRoot != "" {
