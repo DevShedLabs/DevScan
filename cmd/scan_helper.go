@@ -125,7 +125,7 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 	sys := sysinfo.Collect()
 	report := &schema.Report{
 		Meta: schema.Meta{
-			Version:   "0.1.0",
+			Version:   buildVersion(),
 			Timestamp: start,
 			Target:    opts.scope,
 			Path:      opts.path,

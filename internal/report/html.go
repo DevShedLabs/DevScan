@@ -30,6 +30,7 @@ func renderHTML(w io.Writer, r *schema.Report) error {
 	p(`  <div class="logo">DevScan</div>`)
 	p(`  <div class="meta">`)
 	p(`    <span>%s</span>`, r.Meta.Timestamp.Format("2 Jan 2006, 15:04 MST"))
+	p(`    <span>devscan <strong>%s</strong></span>`, html.EscapeString(r.Meta.Version))
 	p(`    <span>Target: <strong>%s</strong></span>`, r.Meta.Target)
 	if r.Meta.Path != "" {
 		p(`    <span>Path: <code>%s</code></span>`, html.EscapeString(r.Meta.Path))

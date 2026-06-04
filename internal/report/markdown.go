@@ -16,6 +16,7 @@ func renderMarkdown(w io.Writer, r *schema.Report) error {
 	p("# DevScan Report")
 	p("")
 	p("**Generated:** %s  ", r.Meta.Timestamp.Format("2006-01-02 15:04:05 MST"))
+	p("**devscan:** %s  ", r.Meta.Version)
 	p("**Target:** %s  ", r.Meta.Target)
 	if r.Meta.Path != "" {
 		p("**Path:** `%s`  ", r.Meta.Path)
