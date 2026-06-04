@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,10 @@ var updateCmd = &cobra.Command{
 	Short: "Update devscan to the latest release",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Updating devscan...")
-		out, err := exec.Command("go", "install", "github.com/DevShedLabs/devscan@latest").CombinedOutput()
+		env := append(os.Environ(), "GOPROXY=direct")
+		c := exec.Command("go", "install", "github.com/DevShedLabs/devscan@latest")
+		c.Env = env
+		out, err := c.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("update failed: %w\n%s", err, string(out))
 		}
