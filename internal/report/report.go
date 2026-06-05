@@ -3,6 +3,7 @@ package report
 import (
 	"io"
 
+	"github.com/DevShedLabs/devscan/internal/keyscanner"
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
 
@@ -18,6 +19,8 @@ type Options struct {
 	// Public strips internal details (package list, project paths, vuln install
 	// paths) — suitable for committing to a public repo.
 	Public bool
+	// KeyFindings, if non-nil, appends a secrets section to the report.
+	KeyFindings []keyscanner.Finding
 }
 
 func Render(w io.Writer, r *schema.Report, format Format, opts Options) error {
@@ -26,11 +29,11 @@ func Render(w io.Writer, r *schema.Report, format Format, opts Options) error {
 	}
 	switch format {
 	case FormatHTML:
-		return renderHTML(w, r)
+		return renderHTML(w, r, opts.KeyFindings)
 	case FormatJSON:
-		return renderJSON(w, r)
+		return renderJSON(w, r, opts.KeyFindings)
 	default:
-		return renderMarkdown(w, r)
+		return renderMarkdown(w, r, opts.KeyFindings)
 	}
 }
 

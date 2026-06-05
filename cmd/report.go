@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DevShedLabs/devscan/internal/keyscanner"
 	"github.com/DevShedLabs/devscan/internal/report"
 	"github.com/spf13/cobra"
 )
@@ -33,10 +34,24 @@ var reportCmd = &cobra.Command{
 			format = report.FormatMarkdown
 		}
 
+		includeKeys, _ := cmd.Flags().GetBool("include-keys")
+
 		opts := scanOptsFromCmd(cmd)
 		r, err := runFullScan(opts)
 		if err != nil {
 			return err
+		}
+
+		var keyFindings []keyscanner.Finding
+		if includeKeys {
+			scanPath := opts.path
+			if scanPath == "" {
+				scanPath, _ = os.Getwd()
+			}
+			keyFindings, err = keyscanner.Scan(scanPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: key scan failed: %v\n", err)
+			}
 		}
 
 		out := os.Stdout
@@ -49,7 +64,7 @@ var reportCmd = &cobra.Command{
 			out = f
 		}
 
-		if err := report.Render(out, r, format, report.Options{Public: public}); err != nil {
+		if err := report.Render(out, r, format, report.Options{Public: public, KeyFindings: keyFindings}); err != nil {
 			return err
 		}
 
@@ -66,5 +81,6 @@ func init() {
 	reportCmd.Flags().Bool("json", false, "Generate JSON report")
 	reportCmd.Flags().StringP("output", "o", "", "Write report to file instead of stdout")
 	reportCmd.Flags().Bool("public", false, "Strip internal paths and package inventory for public sharing")
+	reportCmd.Flags().Bool("include-keys", false, "Run keyscan and include exposed secrets in the report")
 	rootCmd.AddCommand(reportCmd)
 }

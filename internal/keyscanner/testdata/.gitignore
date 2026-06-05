@@ -1,0 +1,8 @@
+# Test fixture files contain realistic-looking (but fake) credential strings.
+# Excluded from git to avoid triggering secret scanning on the repository.
+*.env
+*.json
+*.yml
+*.yaml
+*.js
+*.go
