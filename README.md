@@ -57,6 +57,7 @@ go build -o devscan .
 | `devscan scan` | Raw JSON scan output for piping |
 | `devscan fix` | Suggested fix commands |
 | `devscan report` | Export a full report as Markdown, HTML, or JSON |
+| `devscan keyscan` | Scan files for exposed secrets, API keys, and tokens |
 
 ---
 
@@ -122,6 +123,63 @@ Reports include:
 - Vulnerabilities grouped by severity, with OSV advisory links, fixed-in versions, and fix commands
 - Filesystem paths for every vulnerable package installation
 - Full package inventory
+
+---
+
+## Key Scanning
+
+Scan source files for exposed secrets, API keys, and tokens:
+
+```bash
+# Scan current directory
+devscan keyscan
+
+# Scan a specific path
+devscan keyscan --path ./my-app
+
+# Limit depth (useful for large monorepos)
+devscan keyscan --path /Users/me/projects --depth 3
+
+# Filter to critical only
+devscan keyscan --severity critical
+
+# Export as HTML or Markdown
+devscan keyscan --path ./ --format html --output keyscan.html
+devscan keyscan --path ./ --format md --output keyscan.md
+
+# Redirect output (also enables live progress counter)
+devscan keyscan --path /Users/me/projects --depth 3 > keyscan.html
+```
+
+Detected secret types:
+
+| Category | Examples |
+|---|---|
+| AI providers | OpenAI, Anthropic, Google AI, Groq, OpenRouter, Cohere, Replicate |
+| Cloud | AWS access/secret keys, GCP service accounts, Firebase, Azure |
+| Source control | GitHub tokens (ghp_, ghs_, gho_, github_pat_) |
+| Payments | Stripe live keys (sk_live_, pk_live_), PayPal, Braintree |
+| Messaging | Slack tokens & webhooks, Twilio, SendGrid, Mailgun |
+| Registries | npm tokens |
+| Infrastructure | Heroku, Vercel, Netlify, Render, Cloudflare, DigitalOcean |
+| Monitoring | Datadog, Sentry, New Relic |
+| Private keys | RSA, EC, DSA, OpenSSH private key headers |
+| Database URLs | Postgres, MySQL, MongoDB, Redis URLs with embedded credentials |
+| Named vars | Any `<SERVICE>_KEY`, `<SERVICE>_TOKEN`, `<SERVICE>_SECRET` where the service name is a known provider |
+
+Skips automatically: `node_modules/`, `vendor/`, `.git/`, `dist/`, binary files, documentation (`.md`, `.rst`, `.txt`), and example/template files (`.example`, `.sample`, `.dist`).
+
+All matched values are **redacted** in output — only enough context is shown to identify the type of secret, never the full value.
+
+### Include in full reports
+
+Add a secrets section to any `devscan report`:
+
+```bash
+devscan report --html --include-keys --output report.html
+devscan report --md --include-keys
+devscan report --json --include-keys --output report.json
+```
 
 ---
 
@@ -239,6 +297,7 @@ devscan/
     inspectors/         # Package inspection (npm, pip, composer, cargo, gomod)
     advisory/           # Vulnerability lookups (OSV.dev) with 1hr cache
     versions/           # Runtime latest-version checks with 7-day cache
+    keyscanner/         # Secret and API key detection (file-based pattern scanning)
     sysinfo/            # OS, chip, and architecture detection
     traverse/           # Sub-project discovery by manifest files
     output/             # Terminal renderers (table, JSON, compact)
@@ -260,6 +319,8 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] HTML and Markdown report export
 - [x] Ruby / gem support
 - [x] Homebrew package inspection
+- [x] Secret and API key scanning (`devscan keyscan`)
+- [x] `--include-keys` flag to add secrets section to full reports
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
