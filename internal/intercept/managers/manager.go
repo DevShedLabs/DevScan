@@ -50,9 +50,11 @@ type Manager interface {
 func All() []Manager {
 	return []Manager{
 		&NPM{},
+		&Bun{},
 		&Pip{},
 		&Cargo{},
-		&Bun{},
+		&GoMod{},
+		&Composer{},
 	}
 }
 

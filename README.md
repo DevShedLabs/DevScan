@@ -381,16 +381,18 @@ The warning is printed to stderr in red so it stands out from the surrounding in
 
 `devscan update` automatically rewrites shims to point at the new binary — no manual steps needed after an update.
 
-Shims only check packages that are **explicitly named on the command line**. Lockfile installs (`npm ci`, `bun install` with no args) are passed through — lockfile scanning is on the roadmap.
+Both explicit installs and lockfile installs are scanned. Lockfile commands (`npm ci`, `bun install`, `composer install`, `composer update`, `go get`) read the lock file from the current directory and check every pinned package before the real command runs.
 
 ### Supported package managers
 
 | Manager | Command intercept |
 |---|---|
-| npm | `npm install`, `npm i`, `npm add` |
-| bun | `bun add`, `bun install <pkg>` |
+| npm | `npm install`, `npm i`, `npm add`, `npm ci` (lockfile) |
+| bun | `bun add`, `bun install` (lockfile) |
 | pip | `pip install`, `pip3 install` |
 | cargo | `cargo add`, `cargo install` |
+| go | `go get`, `go install`, `go.sum` (lockfile) |
+| composer | `composer require`, `composer install`, `composer update` (lockfile) |
 
 ---
 
@@ -484,8 +486,8 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] `--include-keys` flag to add secrets section to full reports
 - [x] Local blocklist support — CSV and JSON supply-chain attack databases (`~/.devscan/resources/`)
 - [x] `devscan compile` to merge blocklists into a fast single index
-- [x] Pre-install intercept shims for npm, pip, cargo, bun (`devscan intercept`)
-- [ ] Intercept: lockfile-mode installs (`npm ci`, `bun install` with no args)
+- [x] Pre-install intercept shims for npm, pip, cargo, bun, go, composer (`devscan intercept`)
+- [x] Intercept: lockfile scanning for `npm ci`, `bun install`, `composer install/update`, `go get`
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)

@@ -145,9 +145,15 @@ func RunShim(name string, args []string) {
 	}
 
 	if mode == managers.ModeLockfile {
-		// Lockfile installs not yet implemented — pass through silently.
-		execRealBinary(m, shimsDir, args)
-		return
+		// Read packages from the lock file in the current working directory.
+		cwd, _ := os.Getwd()
+		lockPkgs, err := managers.ReadLockfile(m.Name(), cwd)
+		if err != nil || len(lockPkgs) == 0 {
+			// No lock file or unreadable — pass through without blocking.
+			execRealBinary(m, shimsDir, args)
+			return
+		}
+		pkgs = lockPkgs
 	}
 
 	// Resolve versions for any unpinned packages.
