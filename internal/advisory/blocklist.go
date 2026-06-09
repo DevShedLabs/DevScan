@@ -3,14 +3,80 @@ package advisory
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
+
+// aikidoSource describes one file to fetch from Aikido's public threat feed.
+type aikidoSource struct {
+	filename string
+	url      string
+}
+
+var aikidoSources = []aikidoSource{
+	{
+		filename: "aikido_malware_npm.json",
+		url:      "https://malware-list.aikido.dev/malware_predictions.json",
+	},
+	{
+		filename: "aikido_malware_pypi.json",
+		url:      "https://malware-list.aikido.dev/malware_pypi.json",
+	},
+}
+
+// UpdateDB fetches the latest malware databases from Aikido's public feed into
+// ~/.devscan/resources/. The log callback receives progress messages.
+// Returns the number of files successfully fetched.
+func UpdateDB(log func(string)) (int, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, err
+	}
+	resourcesDir := filepath.Join(home, ".devscan", "resources")
+	if err := os.MkdirAll(resourcesDir, 0o755); err != nil {
+		return 0, err
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	fetched := 0
+
+	for _, src := range aikidoSources {
+		log(fmt.Sprintf("Fetching %s ...", src.url))
+		resp, err := client.Get(src.url)
+		if err != nil {
+			log(fmt.Sprintf("  warning: %v", err))
+			continue
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			log(fmt.Sprintf("  warning: read error: %v", err))
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			log(fmt.Sprintf("  warning: server returned %d", resp.StatusCode))
+			continue
+		}
+
+		dest := filepath.Join(resourcesDir, src.filename)
+		if err := os.WriteFile(dest, body, 0o644); err != nil {
+			log(fmt.Sprintf("  warning: could not write %s: %v", dest, err))
+			continue
+		}
+		log(fmt.Sprintf("  saved → %s (%d bytes)", dest, len(body)))
+		fetched++
+	}
+
+	return fetched, nil
+}
 
 // CompiledIndexName is the filename written by CompileBlocklists and given
 // priority over raw source files during matching.

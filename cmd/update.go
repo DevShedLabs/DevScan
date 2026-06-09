@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DevShedLabs/devscan/internal/advisory"
 	"github.com/DevShedLabs/devscan/internal/intercept"
 	"github.com/spf13/cobra"
 )
@@ -39,7 +40,21 @@ var updateCmd = &cobra.Command{
 		if err := intercept.EnsureShims(); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not update intercept shims: %v\n", err)
 		}
-		fmt.Println("Done. Run `devscan --version` to confirm.")
+
+		fmt.Println("\nUpdating blocklist databases...")
+		fetched, err := advisory.UpdateDB(func(msg string) { fmt.Println(msg) })
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: update-db failed: %v\n", err)
+		} else if fetched > 0 {
+			_, count, err := advisory.CompileBlocklists()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: compile failed: %v\n", err)
+			} else {
+				fmt.Printf("Compiled %d blocklist entries.\n", count)
+			}
+		}
+
+		fmt.Println("\nDone. Run `devscan --version` to confirm.")
 		return nil
 	},
 }

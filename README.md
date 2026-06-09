@@ -59,6 +59,7 @@ go build -o devscan .
 | `devscan report` | Export a full report as Markdown, HTML, or JSON |
 | `devscan keyscan` | Scan files for exposed secrets, API keys, and tokens |
 | `devscan compile` | Compile blocklist resources into a single index |
+| `devscan update-db` | Fetch latest blocklist databases and recompile |
 | `devscan intercept` | Manage package manager shims for real-time install protection |
 
 ---
@@ -142,15 +143,15 @@ Augment OSV vulnerability data with your own curated supply-chain blocklists. An
 
 ### Setup
 
-Drop blocklist files into `~/.devscan/resources/`:
+The fastest way to get started is to fetch the latest databases directly from [Aikido's open-source threat intelligence feed](https://github.com/AikidoSec/safe-chain/):
 
 ```bash
-mkdir -p ~/.devscan/resources
-cp miasma-attack-packages.csv ~/.devscan/resources/
-cp malwareDatabase_js.json ~/.devscan/resources/
+devscan update-db
 ```
 
-Then compile them into a single fast-load index:
+This downloads the npm and PyPI malware databases from `malware-list.aikido.dev`, saves them to `~/.devscan/resources/`, and compiles the index automatically. `devscan update` also runs this step so your databases stay current whenever you update the binary.
+
+You can also drop your own blocklist files into `~/.devscan/resources/` and compile manually:
 
 ```bash
 devscan compile
@@ -493,6 +494,7 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] `--include-keys` flag to add secrets section to full reports
 - [x] Local blocklist support — CSV and JSON supply-chain attack databases (`~/.devscan/resources/`)
 - [x] `devscan compile` to merge blocklists into a fast single index
+- [x] `devscan update-db` to fetch latest databases from Aikido Intel and recompile
 - [x] Pre-install intercept shims for npm, pip, cargo, bun, go, composer (`devscan intercept`)
 - [x] Intercept: lockfile scanning for `npm ci`, `bun install`, `composer install/update`, `go get`
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
