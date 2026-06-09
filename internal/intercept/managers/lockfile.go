@@ -15,6 +15,8 @@ func ReadLockfile(managerName, dir string) ([]Pkg, error) {
 	switch managerName {
 	case "npm":
 		return readNPMLockfile(dir)
+	case "pnpm":
+		return readPnpmLockfile(dir)
 	case "bun":
 		return readBunLockfile(dir)
 	case "composer":
@@ -170,6 +172,83 @@ func readGoSum(dir string) ([]Pkg, error) {
 		version := strings.TrimPrefix(modver[at+1:], "v")
 		key := name + "@" + version
 		if !seen[key] {
+			seen[key] = true
+			pkgs = append(pkgs, Pkg{Name: name, Version: version})
+		}
+	}
+	return pkgs, scanner.Err()
+}
+
+// readPnpmLockfile parses pnpm-lock.yaml without a YAML library.
+// Package entries in the packages: section look like:
+//
+//	'lodash@4.17.21':
+//	'@scope/name@1.2.3':
+func readPnpmLockfile(dir string) ([]Pkg, error) {
+	path := filepath.Join(dir, "pnpm-lock.yaml")
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil
+	}
+	defer f.Close()
+
+	seen := map[string]bool{}
+	var pkgs []Pkg
+	inPackages := false
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if line == "packages:" {
+			inPackages = true
+			continue
+		}
+		// Any non-indented line other than packages: ends that section.
+		if inPackages && len(line) > 0 && line[0] != ' ' && line[0] != '\t' {
+			inPackages = false
+		}
+		if !inPackages {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasSuffix(trimmed, ":") {
+			continue
+		}
+		entry := strings.TrimSuffix(trimmed, ":")
+		entry = strings.Trim(entry, "'\"")
+
+		var name, version string
+		if strings.HasPrefix(entry, "@") {
+			// scoped: @scope/pkg@version
+			slash := strings.Index(entry, "/")
+			if slash < 0 {
+				continue
+			}
+			rest := entry[slash+1:]
+			at := strings.LastIndex(rest, "@")
+			if at < 0 {
+				continue
+			}
+			name = entry[:slash+1+at]
+			version = rest[at+1:]
+		} else {
+			at := strings.Index(entry, "@")
+			if at < 0 {
+				continue
+			}
+			name = entry[:at]
+			version = entry[at+1:]
+		}
+
+		// Strip peer dep suffix: name@1.0.0(peer@2.0) → 1.0.0
+		if idx := strings.Index(version, "("); idx >= 0 {
+			version = version[:idx]
+		}
+
+		key := name + "@" + version
+		if name != "" && version != "" && !seen[key] {
 			seen[key] = true
 			pkgs = append(pkgs, Pkg{Name: name, Version: version})
 		}

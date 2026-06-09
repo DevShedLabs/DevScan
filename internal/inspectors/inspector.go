@@ -44,6 +44,7 @@ func RunAll(inspectors []Inspector, scope, path string) []schema.Package {
 func All() []Inspector {
 	return []Inspector{
 		&NpmInspector{},
+		&PnpmInspector{},
 		&PipInspector{},
 		&ComposerInspector{},
 		&CargoInspector{},

@@ -8,29 +8,27 @@ import (
 	"time"
 )
 
-type Bun struct{}
+type Pnpm struct{}
 
-func (b *Bun) Name() string       { return "bun" }
-func (b *Bun) Binaries() []string { return []string{"bun"} }
+func (p *Pnpm) Name() string       { return "pnpm" }
+func (p *Pnpm) Binaries() []string { return []string{"pnpm"} }
 
-func (b *Bun) FindReal(shimsDir string) (string, error) {
-	return findReal("bun", shimsDir)
+func (p *Pnpm) FindReal(shimsDir string) (string, error) {
+	return findReal("pnpm", shimsDir)
 }
 
-// Bun uses the same npm registry, so version resolution is identical.
-var bunInstallSubcmds = map[string]bool{
+var pnpmInstallSubcmds = map[string]bool{
 	"install": true,
 	"i":       true,
 	"add":     true,
-	"a":       true,
 }
 
-func (b *Bun) ParseInstall(args []string) ([]Pkg, InstallMode, error) {
+func (p *Pnpm) ParseInstall(args []string) ([]Pkg, InstallMode, error) {
 	if len(args) == 0 {
 		return nil, ModePassthrough, nil
 	}
 	sub := args[0]
-	if !bunInstallSubcmds[sub] {
+	if !pnpmInstallSubcmds[sub] {
 		return nil, ModePassthrough, nil
 	}
 
@@ -39,18 +37,17 @@ func (b *Bun) ParseInstall(args []string) ([]Pkg, InstallMode, error) {
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
-		name, version := splitNameVersion(arg) // reuse npm's splitter (same format)
+		name, version := splitNameVersion(arg) // same format as npm
 		pkgs = append(pkgs, Pkg{Name: name, Version: version})
 	}
 
-	// `bun install` with no extra args installs from lockfile.
 	if len(pkgs) == 0 {
 		return nil, ModeLockfile, nil
 	}
 	return pkgs, ModeExplicit, nil
 }
 
-func (b *Bun) ResolveVersion(name string) (string, error) {
+func (p *Pnpm) ResolveVersion(name string) (string, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	url := fmt.Sprintf("https://registry.npmjs.org/%s/latest", name)
 	resp, err := client.Get(url)

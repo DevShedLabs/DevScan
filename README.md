@@ -328,6 +328,7 @@ When enabled, devscan writes symlinks into `~/.devscan/shims/`:
 
 ```
 ~/.devscan/shims/npm      →  devscan binary
+~/.devscan/shims/pnpm     →  devscan binary
 ~/.devscan/shims/bun      →  devscan binary
 ~/.devscan/shims/pip      →  devscan binary
 ~/.devscan/shims/pip3     →  devscan binary
@@ -393,6 +394,7 @@ Both explicit installs and lockfile installs are scanned. Lockfile commands (`np
 | Manager | Command intercept |
 |---|---|
 | npm | `npm install`, `npm i`, `npm add`, `npm ci` (lockfile) |
+| pnpm | `pnpm add`, `pnpm install` (lockfile) |
 | bun | `bun add`, `bun install` (lockfile) |
 | pip | `pip install`, `pip3 install` |
 | cargo | `cargo add`, `cargo install` |
