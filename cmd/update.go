@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DevShedLabs/devscan/internal/intercept"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +35,9 @@ var updateCmd = &cobra.Command{
 		out, err := c.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("update failed: %w\n%s", err, string(out))
+		}
+		if err := intercept.EnsureShims(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not update intercept shims: %v\n", err)
 		}
 		fmt.Println("Done. Run `devscan --version` to confirm.")
 		return nil

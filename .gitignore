@@ -22,3 +22,7 @@ keys.md
 keys.html
 
 miasma-mini-shai-hulud-supply-chain-attack-packages.csv
+
+# Blocking test files
+package.json
+package-lock.json

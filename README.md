@@ -59,6 +59,7 @@ go build -o devscan .
 | `devscan report` | Export a full report as Markdown, HTML, or JSON |
 | `devscan keyscan` | Scan files for exposed secrets, API keys, and tokens |
 | `devscan compile` | Compile blocklist resources into a single index |
+| `devscan intercept` | Manage package manager shims for real-time install protection |
 
 ---
 
@@ -315,6 +316,84 @@ Useful for CI pipelines:
 
 ---
 
+## Intercept
+
+Intercept wraps npm, pip, cargo, and bun with shims that check every explicit package install against your compiled blocklist **before the package is fetched** — before any `postInstall` hook can execute.
+
+Most supply-chain attacks run malicious code during installation via post-install hooks, and use tools like Bun and Rust to do further damage on the machine. Intercept stops them at the gate.
+
+### How it works
+
+When enabled, devscan writes symlinks into `~/.devscan/shims/`:
+
+```
+~/.devscan/shims/npm   →  devscan binary
+~/.devscan/shims/pip   →  devscan binary
+~/.devscan/shims/cargo →  devscan binary
+~/.devscan/shims/bun   →  devscan binary
+```
+
+The shims directory sits at the front of your `PATH`. When you run `npm install evil-pkg`, the shim runs first, checks the package against your compiled blocklist, and either blocks with a warning or transparently execs the real binary. Non-install commands (`npm run`, `cargo build`, etc.) are passed through instantly with zero overhead.
+
+### Setup
+
+```bash
+# 1. Compile your blocklists (required — shims check the compiled index)
+devscan compile
+
+# 2. Enable shims and patch your shell profile
+devscan intercept enable
+
+# 3. Reload your shell
+source ~/.zshrc
+```
+
+### Commands
+
+```bash
+# Enable shims and patch shell profile
+devscan intercept enable
+
+# Disable and clean up
+devscan intercept disable
+
+# Check which shims are active and whether the shims dir is on PATH
+devscan intercept status
+```
+
+### What a blocked install looks like
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                        DEVSCAN BLOCKED                               ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  [MALWARE]    chai-utils-test@4.5.3
+               Found in: malwareDatabase_js.json
+
+  npm install was blocked. Remove this package from your command and try again.
+  Run `devscan audit` for a full vulnerability report.
+```
+
+The warning is printed to stderr in red so it stands out from the surrounding install output. The process exits 1, preventing the install from proceeding.
+
+### Keeping shims current
+
+`devscan update` automatically rewrites shims to point at the new binary — no manual steps needed after an update.
+
+Shims only check packages that are **explicitly named on the command line**. Lockfile installs (`npm ci`, `bun install` with no args) are passed through — lockfile scanning is on the roadmap.
+
+### Supported package managers
+
+| Manager | Command intercept |
+|---|---|
+| npm | `npm install`, `npm i`, `npm add` |
+| bun | `bun add`, `bun install <pkg>` |
+| pip | `pip install`, `pip3 install` |
+| cargo | `cargo add`, `cargo install` |
+
+---
+
 ## Cache
 
 Network results are cached locally to keep scans fast.
@@ -376,6 +455,8 @@ devscan/
     detectors/          # Runtime detection (node, bun, python, git, php, rust, go)
     inspectors/         # Package inspection (npm, pip, composer, cargo, gomod)
     advisory/           # Vulnerability lookups (OSV.dev + local blocklists) with 1hr cache
+    intercept/          # Package manager shims — pre-install supply-chain blocking
+    intercept/managers/ # Per-manager argument parsing (npm, pip, cargo, bun)
     versions/           # Runtime latest-version checks with 7-day cache
     keyscanner/         # Secret and API key detection (file-based pattern scanning)
     sysinfo/            # OS, chip, and architecture detection
@@ -403,6 +484,8 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] `--include-keys` flag to add secrets section to full reports
 - [x] Local blocklist support — CSV and JSON supply-chain attack databases (`~/.devscan/resources/`)
 - [x] `devscan compile` to merge blocklists into a fast single index
+- [x] Pre-install intercept shims for npm, pip, cargo, bun (`devscan intercept`)
+- [ ] Intercept: lockfile-mode installs (`npm ci`, `bun install` with no args)
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
