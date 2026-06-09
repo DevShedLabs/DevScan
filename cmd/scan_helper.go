@@ -24,17 +24,15 @@ type scanOptions struct {
 }
 
 func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
-	project, _ := cmd.Flags().GetBool("project")
 	global, _ := cmd.Flags().GetBool("global")
 	path, _ := cmd.Flags().GetString("path")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	depth, _ := cmd.Flags().GetInt("depth")
 
-	scope := "global"
-	if project || path != "" {
-		scope = "project"
+	scope := "project"
+	if global {
+		scope = "global"
 	}
-	_ = global
 
 	if path == "" && scope == "project" {
 		cwd, _ := os.Getwd()

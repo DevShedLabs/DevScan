@@ -64,20 +64,28 @@ go build -o devscan .
 
 ## Usage
 
+All commands scan the current directory by default. Use `--global` to scan the entire machine instead.
+
 ```bash
 # Get the version you have installed
 devscan --version
 
-# Full health report
+# Full health report for the current project
 devscan doctor
 
-# Audit for vulnerabilities, filter to high and above
+# Audit the current project for vulnerabilities
+devscan audit
+
+# Scan the whole machine (global packages)
+devscan audit --global
+
+# Filter to high severity and above
 devscan audit --severity high
 
 # Show exactly where vulnerable packages are installed
 devscan locate
 
-# Scan a specific project
+# Scan a specific path
 devscan doctor --path ./my-app
 
 # Scan a project and all sub-projects up to 2 levels deep
@@ -97,24 +105,24 @@ devscan audit --severity critical
 Generate a shareable report in Markdown, HTML, or JSON:
 
 ```bash
-# Markdown to stdout
+# Format is inferred from the output file extension
+devscan report --output report.html
+devscan report --output report.md
+devscan report --output scan.json
+
+# Or specify the format explicitly (stdout)
+devscan report --html
 devscan report --md
+devscan report --json
 
-# HTML file
-devscan report --html --output report.html
-
-# JSON file
-devscan report --json --output scan.json
-
-# Scoped to a project
-devscan report --html --output report.html --path ./my-app
+# Scoped to a path
+devscan report --output report.html --path ./my-app
 
 # Traverse sub-projects
-devscan report --html --output report.html --path ./my-app --depth 2
+devscan report --output report.html --path ./my-app --depth 2
 
-# Clean public reports
-devscan report --path ./  --md --output security-report.md --public
-
+# Clean public report (strips internal paths and package inventory)
+devscan report --output security-report.md --public
 ```
 
 Reports include:
@@ -261,8 +269,8 @@ devscan report --json --include-keys --output report.json
 --format string      Output format: table|json|compact (default "table")
 --severity string    Filter by severity: critical|high|medium|low
 --ecosystem string   Filter by ecosystem: npm|pypi|packagist|crates.io|go
---global             Scan global packages (default)
---project            Scan current project directory
+--global             Scan global packages (machine-wide)
+--project            Scan current project directory (default)
 --path string        Explicit project path to scan
 --depth int          Traverse subdirectories up to this depth (0 = path only)
 --no-color           Disable color output

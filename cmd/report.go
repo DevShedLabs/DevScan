@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/keyscanner"
 	"github.com/DevShedLabs/devscan/internal/report"
@@ -23,7 +25,7 @@ var reportCmd = &cobra.Command{
 		outputFile, _ := cmd.Flags().GetString("output")
 		public, _ := cmd.Flags().GetBool("public")
 
-		// Default to markdown if nothing specified
+		// Infer format from output file extension if no flag given.
 		format := report.FormatMarkdown
 		switch {
 		case html:
@@ -32,6 +34,15 @@ var reportCmd = &cobra.Command{
 			format = report.FormatJSON
 		case md:
 			format = report.FormatMarkdown
+		case outputFile != "":
+			switch strings.ToLower(filepath.Ext(outputFile)) {
+			case ".html", ".htm":
+				format = report.FormatHTML
+			case ".json":
+				format = report.FormatJSON
+			case ".md", ".markdown":
+				format = report.FormatMarkdown
+			}
 		}
 
 		includeKeys, _ := cmd.Flags().GetBool("include-keys")
