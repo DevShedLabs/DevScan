@@ -327,10 +327,13 @@ Most supply-chain attacks run malicious code during installation via post-instal
 When enabled, devscan writes symlinks into `~/.devscan/shims/`:
 
 ```
-~/.devscan/shims/npm   →  devscan binary
-~/.devscan/shims/pip   →  devscan binary
-~/.devscan/shims/cargo →  devscan binary
-~/.devscan/shims/bun   →  devscan binary
+~/.devscan/shims/npm      →  devscan binary
+~/.devscan/shims/bun      →  devscan binary
+~/.devscan/shims/pip      →  devscan binary
+~/.devscan/shims/pip3     →  devscan binary
+~/.devscan/shims/cargo    →  devscan binary
+~/.devscan/shims/go       →  devscan binary
+~/.devscan/shims/composer →  devscan binary
 ```
 
 The shims directory sits at the front of your `PATH`. When you run `npm install evil-pkg`, the shim runs first, checks the package against your compiled blocklist, and either blocks with a warning or transparently execs the real binary. Non-install commands (`npm run`, `cargo build`, etc.) are passed through instantly with zero overhead.
@@ -347,6 +350,8 @@ devscan intercept enable
 # 3. Reload your shell
 source ~/.zshrc
 ```
+
+> Re-run `devscan intercept enable` any time to sync shims — it is safe to run repeatedly and will add any missing shims without affecting existing ones.
 
 ### Commands
 
@@ -379,7 +384,7 @@ The warning is printed to stderr in red so it stands out from the surrounding in
 
 ### Keeping shims current
 
-`devscan update` automatically rewrites shims to point at the new binary — no manual steps needed after an update.
+`devscan update` automatically rewrites shims to point at the new binary. If a new package manager is added in a future release, re-run `devscan intercept enable` to write the new shims — it is idempotent and safe to run at any time.
 
 Both explicit installs and lockfile installs are scanned. Lockfile commands (`npm ci`, `bun install`, `composer install`, `composer update`, `go get`) read the lock file from the current directory and check every pinned package before the real command runs.
 
