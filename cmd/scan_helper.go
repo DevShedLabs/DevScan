@@ -169,6 +169,16 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 		report.Vulnerabilities = vulns
 	}
 
+	// Merge results from local supply-chain blocklist CSVs (resources/*.csv).
+	if blocklistVulns, blErr := advisory.MatchBlocklists(report.Packages); blErr == nil {
+		for i, v := range blocklistVulns {
+			key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
+			blocklistVulns[i].Paths = pathIndex[key]
+			blocklistVulns[i].Parents = parentIndex[key]
+		}
+		report.Vulnerabilities = append(report.Vulnerabilities, blocklistVulns...)
+	}
+
 	report.Meta.DurationMs = time.Since(start).Milliseconds()
 	report.ComputeSummary()
 

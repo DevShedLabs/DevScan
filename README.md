@@ -58,6 +58,7 @@ go build -o devscan .
 | `devscan fix` | Suggested fix commands |
 | `devscan report` | Export a full report as Markdown, HTML, or JSON |
 | `devscan keyscan` | Scan files for exposed secrets, API keys, and tokens |
+| `devscan compile` | Compile blocklist resources into a single index |
 
 ---
 
@@ -123,6 +124,77 @@ Reports include:
 - Vulnerabilities grouped by severity, with OSV advisory links, fixed-in versions, and fix commands
 - Filesystem paths for every vulnerable package installation
 - Full package inventory
+
+---
+
+## Blocklists
+
+Augment OSV vulnerability data with your own curated supply-chain blocklists. Any package matched against a blocklist is reported as **critical** severity alongside normal OSV findings.
+
+### Setup
+
+Drop blocklist files into `~/.devscan/resources/`:
+
+```bash
+mkdir -p ~/.devscan/resources
+cp miasma-attack-packages.csv ~/.devscan/resources/
+cp malwareDatabase_js.json ~/.devscan/resources/
+```
+
+Then compile them into a single fast-load index:
+
+```bash
+devscan compile
+```
+
+This writes `~/.devscan/devscan.json`. All subsequent scans load the compiled index automatically — no flags needed, no rebuild required.
+
+After adding or updating source files, re-run `devscan compile` to regenerate the index.
+
+### Supported formats
+
+**CSV** — header row required, `Ecosystem` and `Name` columns required, `Version` optional (omit to match any version):
+
+```
+Ecosystem,Namespace,Name,Version,Artifact,Published,Detected
+npm,,chai-utils-test,4.5.3,,,2026-06-04T00:00:00Z
+pypi,,tlask,3.1.4,,,2026-06-07T15:00:00Z
+```
+
+**JSON (generic)** — ecosystem must be specified:
+
+```json
+[
+  { "ecosystem": "npm", "name": "evil-pkg", "version": "1.0.0", "reason": "MALWARE" }
+]
+```
+
+**JSON (Aikido-style)** — auto-detected by the `package_name` field, treated as npm:
+
+```json
+[
+  { "package_name": "evil-pkg", "version": "1.0.0", "reason": "MALWARE" }
+]
+```
+
+### Deduplication
+
+Packages flagged by multiple sources are merged into a single finding. The vulnerability description lists every source file that matched, e.g.:
+
+```
+[CRIT] chai-utils-test@4.5.3
+  Malware detected
+  This package appears in malwareDatabase_js.json, miasma-attack-packages.csv.
+  Reason: MALWARE. Remove or replace it immediately.
+```
+
+### Directory layout
+
+```
+~/.devscan/
+  resources/           ← drop source files here (*.csv, *.json)
+  devscan.json         ← compiled index (auto-used by all scans)
+```
 
 ---
 
@@ -295,7 +367,7 @@ devscan/
   internal/
     detectors/          # Runtime detection (node, bun, python, git, php, rust, go)
     inspectors/         # Package inspection (npm, pip, composer, cargo, gomod)
-    advisory/           # Vulnerability lookups (OSV.dev) with 1hr cache
+    advisory/           # Vulnerability lookups (OSV.dev + local blocklists) with 1hr cache
     versions/           # Runtime latest-version checks with 7-day cache
     keyscanner/         # Secret and API key detection (file-based pattern scanning)
     sysinfo/            # OS, chip, and architecture detection
@@ -321,6 +393,8 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] Homebrew package inspection
 - [x] Secret and API key scanning (`devscan keyscan`)
 - [x] `--include-keys` flag to add secrets section to full reports
+- [x] Local blocklist support — CSV and JSON supply-chain attack databases (`~/.devscan/resources/`)
+- [x] `devscan compile` to merge blocklists into a fast single index
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
