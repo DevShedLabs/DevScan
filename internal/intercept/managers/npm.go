@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -118,15 +117,43 @@ func (n *NPM) ResolveVersion(name string) (string, error) {
 	return data.Version, nil
 }
 
-// findReal locates the real binary by searching PATH entries, skipping shimsDir.
-func findReal(binary, shimsDir string) (string, error) {
-	pathEnv := os.Getenv("PATH")
-	dirs := filepath.SplitList(pathEnv)
+// knownBinaryDirs lists common locations for package manager binaries that may
+// not appear in PATH when the shim is invoked by another process (e.g. devscan
+// itself calling go list internally). Checked after PATH walk fails.
+var knownBinaryDirs = []string{
+	"/usr/local/go/bin",
+	"/usr/local/bin",
+	"/opt/homebrew/bin",
+	"/usr/bin",
+	"/bin",
+}
 
+// findReal locates the real binary by searching PATH entries, skipping shimsDir.
+// Falls back to known system locations in case PATH is incomplete at shim invocation time.
+func findReal(binary, shimsDir string) (string, error) {
 	shimsDir = filepath.Clean(shimsDir)
 
+	// Build a deduplicated search list: PATH entries + known fallbacks.
+	pathEnv := os.Getenv("PATH")
+	seen := map[string]bool{}
+	var dirs []string
+	for _, d := range filepath.SplitList(pathEnv) {
+		c := filepath.Clean(d)
+		if !seen[c] {
+			seen[c] = true
+			dirs = append(dirs, c)
+		}
+	}
+	for _, d := range knownBinaryDirs {
+		c := filepath.Clean(d)
+		if !seen[c] {
+			seen[c] = true
+			dirs = append(dirs, c)
+		}
+	}
+
 	for _, dir := range dirs {
-		if filepath.Clean(dir) == shimsDir {
+		if dir == shimsDir {
 			continue
 		}
 		candidate := filepath.Join(dir, binary)
@@ -134,36 +161,17 @@ func findReal(binary, shimsDir string) (string, error) {
 		if err != nil {
 			continue
 		}
-		if info.Mode()&0o111 != 0 {
-			return candidate, nil
+		if info.Mode()&0o111 == 0 {
+			continue
 		}
+		// Skip if the candidate resolves back to the devscan binary (our own shim).
+		if resolved, err := filepath.EvalSymlinks(candidate); err == nil {
+			if filepath.Clean(filepath.Dir(resolved)) == shimsDir {
+				continue
+			}
+		}
+		return candidate, nil
 	}
 
-	// Last resort: ask the shell with shimsDir stripped from PATH.
-	// This handles version managers (nvm, pyenv, asdf) that inject their own
-	// shims outside the directories we already walked above.
-	filteredPath := filterPath(pathEnv, shimsDir)
-	cmd := exec.Command("which", binary)
-	cmd.Env = append(os.Environ(), "PATH="+filteredPath)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("could not find real %s binary", binary)
-	}
-	real := strings.TrimSpace(string(out))
-	if real == "" || filepath.Clean(filepath.Dir(real)) == shimsDir {
-		return "", fmt.Errorf("could not find real %s binary (only found our own shim)", binary)
-	}
-	return real, nil
-}
-
-// filterPath returns the PATH string with shimsDir removed.
-func filterPath(pathEnv, shimsDir string) string {
-	shimsDir = filepath.Clean(shimsDir)
-	var kept []string
-	for _, dir := range filepath.SplitList(pathEnv) {
-		if filepath.Clean(dir) != shimsDir {
-			kept = append(kept, dir)
-		}
-	}
-	return strings.Join(kept, string(os.PathListSeparator))
+	return "", fmt.Errorf("could not find real %s binary (only found our own shim)", binary)
 }
