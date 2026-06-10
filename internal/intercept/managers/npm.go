@@ -139,14 +139,31 @@ func findReal(binary, shimsDir string) (string, error) {
 		}
 	}
 
-	// Last resort: ask the shell (handles nvm, pyenv, asdf shims outside PATH).
-	out, err := exec.Command("which", binary).Output()
+	// Last resort: ask the shell with shimsDir stripped from PATH.
+	// This handles version managers (nvm, pyenv, asdf) that inject their own
+	// shims outside the directories we already walked above.
+	filteredPath := filterPath(pathEnv, shimsDir)
+	cmd := exec.Command("which", binary)
+	cmd.Env = append(os.Environ(), "PATH="+filteredPath)
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("could not find real %s binary", binary)
 	}
 	real := strings.TrimSpace(string(out))
-	if filepath.Clean(filepath.Dir(real)) == shimsDir {
+	if real == "" || filepath.Clean(filepath.Dir(real)) == shimsDir {
 		return "", fmt.Errorf("could not find real %s binary (only found our own shim)", binary)
 	}
 	return real, nil
+}
+
+// filterPath returns the PATH string with shimsDir removed.
+func filterPath(pathEnv, shimsDir string) string {
+	shimsDir = filepath.Clean(shimsDir)
+	var kept []string
+	for _, dir := range filepath.SplitList(pathEnv) {
+		if filepath.Clean(dir) != shimsDir {
+			kept = append(kept, dir)
+		}
+	}
+	return strings.Join(kept, string(os.PathListSeparator))
 }
