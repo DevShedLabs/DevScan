@@ -44,7 +44,6 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 	// go list -json emits concatenated JSON objects, not an array.
 	var packages []schema.Package
 	dec := json.NewDecoder(strings.NewReader(string(out)))
-	first := true
 	for dec.More() {
 		var mod struct {
 			Path    string `json:"Path"`
@@ -55,9 +54,7 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		if err := dec.Decode(&mod); err != nil {
 			break
 		}
-		// Skip the main module and entries without versions.
-		if mod.Main || mod.Version == "" || first {
-			first = false
+		if mod.Main || mod.Version == "" {
 			continue
 		}
 		packages = append(packages, schema.Package{
