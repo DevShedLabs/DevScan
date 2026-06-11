@@ -3,6 +3,7 @@ package report
 import (
 	"io"
 
+	"github.com/DevShedLabs/devscan/internal/advisory"
 	"github.com/DevShedLabs/devscan/internal/keyscanner"
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
@@ -21,6 +22,19 @@ type Options struct {
 	Public bool
 	// KeyFindings, if non-nil, appends a secrets section to the report.
 	KeyFindings []keyscanner.Finding
+}
+
+// RenderOSVAdvisories writes OSV search results in the requested format.
+// detail controls whether full advisory text and references are included.
+func RenderOSVAdvisories(w io.Writer, advisories []advisory.OSVAdvisory, format Format, detail bool) error {
+	switch format {
+	case FormatHTML:
+		return renderOSVHTML(w, advisories, detail)
+	case FormatJSON:
+		return renderOSVJSON(w, advisories, detail)
+	default:
+		return renderOSVMarkdown(w, advisories, detail)
+	}
 }
 
 func Render(w io.Writer, r *schema.Report, format Format, opts Options) error {

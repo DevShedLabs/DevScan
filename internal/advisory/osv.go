@@ -88,7 +88,8 @@ type osvRange struct {
 }
 
 type osvEvent struct {
-	Fixed string `json:"fixed"`
+	Introduced string `json:"introduced"`
+	Fixed      string `json:"fixed"`
 }
 
 type osvRef struct {

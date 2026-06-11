@@ -58,6 +58,7 @@ go build -o devscan .
 | `devscan fix` | Suggested fix commands |
 | `devscan report` | Export a full report as Markdown, HTML, or JSON |
 | `devscan keyscan` | Scan files for exposed secrets, API keys, and tokens |
+| `devscan osv` | Search OSV for advisories by package name, ID, or keyword |
 | `devscan compile` | Compile blocklist resources into a single index |
 | `devscan update-db` | Fetch latest blocklist databases and recompile |
 | `devscan intercept` | Manage package manager shims for real-time install protection |
@@ -481,6 +482,85 @@ Both explicit installs and lockfile installs are scanned. Lockfile commands (`np
 
 ---
 
+## OSV Search
+
+Search [OSV.dev](https://osv.dev) for advisories directly from the terminal — faster and more scriptable than the OSV web UI.
+
+### By package name
+
+```bash
+# All advisories for a package (all ecosystems)
+devscan osv --package axios
+
+# Scoped to a specific ecosystem
+devscan osv --package axios --ecosystem npm
+
+# Only advisories affecting a specific version
+devscan osv --package axios --version 1.2.3
+devscan osv --package requests --ecosystem pypi --version 2.28.0
+```
+
+### By advisory ID
+
+Direct lookup by CVE, GHSA, RUSTSEC, PYSEC, or any OSV ID:
+
+```bash
+devscan osv CVE-2024-1234
+devscan osv GHSA-xxxx-yyyy-zzzz
+devscan osv RUSTSEC-2024-0001
+```
+
+### Free text / keyword search
+
+Searches for the term as a package name across all ecosystems, then filters results where the term appears in the advisory ID, summary, details, or package name:
+
+```bash
+devscan osv "onering"
+devscan osv "prototype pollution" --ecosystem npm
+```
+
+### Detail mode
+
+By default results show a one-line summary per advisory. Use `--detail` to expand full advisory text, all affected version ranges, and references:
+
+```bash
+devscan osv --package lodash --detail
+devscan osv CVE-2024-1234 --detail
+```
+
+### Saving reports
+
+Output can be saved as HTML, Markdown, or JSON — format is inferred from the file extension:
+
+```bash
+devscan osv --package axios --output report.html
+devscan osv --package axios --output report.md
+devscan osv --package axios --output report.json
+
+# Or specify format explicitly
+devscan osv --package axios --html
+devscan osv --package axios --json
+devscan osv --package axios --md
+
+# Detail mode in a saved report
+devscan osv --package axios --detail --output report.html
+```
+
+### Supported ecosystems
+
+Pass the short name — devscan maps it to the OSV ecosystem name automatically:
+
+| Flag value | OSV ecosystem |
+|---|---|
+| `npm` | npm |
+| `pypi` | PyPI |
+| `cargo`, `crates.io`, `rust` | crates.io |
+| `go` | Go |
+| `gem`, `ruby` | RubyGems |
+| `composer`, `packagist`, `php` | Packagist |
+
+---
+
 ## Cache
 
 Network results are cached locally to keep scans fast.
@@ -575,6 +655,7 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] Pre-install intercept shims for npm, pip, cargo, bun, go, composer (`devscan intercept`)
 - [x] Intercept: lockfile scanning for `npm ci`, `bun install`, `composer install/update`, `go get`
 - [x] User advisories — flag compromised packages immediately via `.devscan/advisories.yaml` without waiting for OSV
+- [x] `devscan osv` — search OSV by package name, version, advisory ID, or keyword; export as HTML/Markdown/JSON
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
