@@ -143,16 +143,33 @@ func compiledIndexPath() (string, error) {
 
 // loadBlocklists reads blocklist entries for use during scanning.
 //
-// If a compiled index (~/.devscan/devscan.json) exists it is used exclusively
-// — raw source files are skipped. Run `devscan compile` to rebuild it after
-// adding or updating source files.
+// If a compiled index (~/.devscan/devscan.json) exists it is used as the base;
+// user advisories from .devscan/advisories.yaml are always merged on top so
+// they take effect immediately without requiring a recompile.
 func loadBlocklists() ([]blocklistEntry, error) {
+	var base []blocklistEntry
+	var err error
+
 	if path, err := compiledIndexPath(); err == nil {
 		if _, err := os.Stat(path); err == nil {
-			return parseCompiledIndex(path)
+			base, err = parseCompiledIndex(path)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return loadRawBlocklists()
+	if base == nil {
+		base, err = loadRawBlocklists()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	user, err := loadUserAdvisories()
+	if err != nil {
+		return nil, err
+	}
+	return append(base, user...), nil
 }
 
 // loadRawBlocklists parses all raw *.csv and *.json source files from

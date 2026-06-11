@@ -204,7 +204,71 @@ Packages flagged by multiple sources are merged into a single finding. The vulne
 ~/.devscan/
   resources/           ← drop source files here (*.csv, *.json)
   devscan.json         ← compiled index (auto-used by all scans)
+  advisories.yaml      ← global user advisories (optional)
+
+<project>/
+  .devscan/
+    advisories.yaml    ← project-scoped advisories (optional, commit to repo)
 ```
+
+---
+
+## User Advisories
+
+When a security company publishes a disclosure about a compromised package, OSV.dev can take days or weeks to reflect it. User advisories let you flag a package immediately — no waiting, no recompile.
+
+### Format
+
+Create `.devscan/advisories.yaml` in your project root (committed to your repo) or `~/.devscan/advisories.yaml` for a global advisory that applies to all projects:
+
+```yaml
+advisories:
+  - ecosystem: crates.io
+    package: onering
+    version: "*"          # all versions
+    severity: critical
+    reason: "Package compromised — backdoor injected"
+    reference: "https://blog.sec.com/2026/06/onering"
+
+  - ecosystem: npm
+    package: left-pad
+    version: "1.2.3"      # specific version only
+    severity: high
+    reason: "Malicious version published"
+    reference: "https://..."
+```
+
+`version: "*"` matches every installed version. A specific version (e.g. `"1.2.3"`) matches only that exact release.
+
+### How it works
+
+User advisories are merged on top of the compiled blocklist every time devscan runs. No recompile step needed — drop the file and rescan.
+
+Matched packages are reported as **critical** severity findings alongside OSV and blocklist results, and the reference URL is included in the finding description.
+
+### Install-time blocking
+
+If you have intercept shims enabled, user advisories also block installs before the package is fetched:
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                        DEVSCAN BLOCKED                               ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  [CRITICAL]   onering
+               Package compromised — backdoor injected — https://blog.sec.com/2026/06/onering
+
+  cargo add was blocked. Remove this package from your command and try again.
+```
+
+### Scope
+
+| File location | Scope |
+|---|---|
+| `.devscan/advisories.yaml` | Project only — commit to share with your team |
+| `~/.devscan/advisories.yaml` | All projects on this machine |
+
+Both files are loaded simultaneously when present.
 
 ---
 
@@ -497,6 +561,7 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] `devscan update-db` to fetch latest databases from Aikido Intel and recompile
 - [x] Pre-install intercept shims for npm, pip, cargo, bun, go, composer (`devscan intercept`)
 - [x] Intercept: lockfile scanning for `npm ci`, `bun install`, `composer install/update`, `go get`
+- [x] User advisories — flag compromised packages immediately via `.devscan/advisories.yaml` without waiting for OSV
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
