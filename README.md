@@ -244,6 +244,18 @@ advisories:
 
 User advisories are merged on top of the compiled blocklist every time devscan runs. No recompile step needed — drop the file and rescan.
 
+To check your system against your advisories without sending every package to OSV, use `--advisories-only`:
+
+```bash
+# Fast, private — no network calls to OSV
+devscan audit --advisories-only
+
+# Global scan against your custom advisories only
+devscan audit --advisories-only --global
+```
+
+This is useful when you've just added an advisory and want to check whether the package is present on your machine, without the latency or data exposure of a full OSV scan.
+
 Matched packages are reported as **critical** severity findings alongside OSV and blocklist results, and the reference URL is included in the finding description.
 
 ### Install-time blocking
@@ -341,6 +353,7 @@ devscan report --json --include-keys --output report.json
 --depth int          Traverse subdirectories up to this depth (0 = path only)
 --no-color           Disable color output
 --no-cache           Bypass cache and force a fresh advisory lookup
+--advisories-only    Match only user advisories and blocklists — skip OSV network lookup
 --public             Removes data not needed for public view, eg. repo
 -o, --output string  Write report to file (report command only)
 ```

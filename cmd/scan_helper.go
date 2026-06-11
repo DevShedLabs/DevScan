@@ -17,10 +17,11 @@ import (
 )
 
 type scanOptions struct {
-	scope   string // "global" | "project"
-	path    string
-	depth   int
-	noCache bool
+	scope          string // "global" | "project"
+	path           string
+	depth          int
+	noCache        bool
+	advisoriesOnly bool // skip OSV; match only user advisories and blocklists
 }
 
 func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
@@ -28,6 +29,7 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 	path, _ := cmd.Flags().GetString("path")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	depth, _ := cmd.Flags().GetInt("depth")
+	advisoriesOnly, _ := cmd.Flags().GetBool("advisories-only")
 
 	scope := "project"
 	if global {
@@ -39,7 +41,7 @@ func scanOptsFromCmd(cmd *cobra.Command) scanOptions {
 		path = cwd
 	}
 
-	return scanOptions{scope: scope, path: path, depth: depth, noCache: noCache}
+	return scanOptions{scope: scope, path: path, depth: depth, noCache: noCache, advisoriesOnly: advisoriesOnly}
 }
 
 // languageEcosystems are the language-native ecosystems that take priority over
@@ -154,20 +156,21 @@ func runFullScan(opts scanOptions) (*schema.Report, error) {
 	pkgs, pathIndex, parentIndex := deduplicatePackages(allPackages)
 	report.Packages = pkgs
 
-	// Query advisories
-	client := advisory.NewClient(opts.noCache)
-	vulns, err := client.QueryPackages(report.Packages)
-	if err == nil {
-		// Attach all known install paths and parent packages to each vulnerability.
-		for i, v := range vulns {
-			key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
-			vulns[i].Paths = pathIndex[key]
-			vulns[i].Parents = parentIndex[key]
+	// Query advisories (skipped when --advisories-only is set).
+	if !opts.advisoriesOnly {
+		client := advisory.NewClient(opts.noCache)
+		vulns, err := client.QueryPackages(report.Packages)
+		if err == nil {
+			for i, v := range vulns {
+				key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
+				vulns[i].Paths = pathIndex[key]
+				vulns[i].Parents = parentIndex[key]
+			}
+			report.Vulnerabilities = vulns
 		}
-		report.Vulnerabilities = vulns
 	}
 
-	// Merge results from local supply-chain blocklist CSVs (resources/*.csv).
+	// Merge results from local supply-chain blocklists and user advisories.
 	if blocklistVulns, blErr := advisory.MatchBlocklists(report.Packages); blErr == nil {
 		for i, v := range blocklistVulns {
 			key := v.Ecosystem + "|" + v.Package + "|" + v.InstalledVersion
