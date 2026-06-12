@@ -1,6 +1,7 @@
 package inspectors
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -25,11 +26,15 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		return nil, nil
 	}
 
+	gomodPath := filepath.Join(path, "go.mod")
 	if path != "" {
-		if _, err := os.Stat(filepath.Join(path, "go.mod")); err != nil {
+		if _, err := os.Stat(gomodPath); err != nil {
 			return nil, nil
 		}
 	}
+
+	// Parse go.mod directly to determine which deps are direct vs indirect.
+	directDeps := parseDirectDeps(gomodPath)
 
 	cmd := exec.Command("go", "list", "-m", "-json", "all")
 	if path != "" {
@@ -48,7 +53,6 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		var mod struct {
 			Path    string `json:"Path"`
 			Version string `json:"Version"`
-			Dir     string `json:"Dir"` // path in module cache
 			Main    bool   `json:"Main"`
 		}
 		if err := dec.Decode(&mod); err != nil {
@@ -62,10 +66,57 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 			Version:   mod.Version,
 			Ecosystem: "go",
 			Scope:     "project",
-			Direct:    true,
-			Path:      mod.Dir,
+			Direct:    directDeps[mod.Path],
+			Path:      gomodPath,
 		})
 	}
 
 	return packages, nil
+}
+
+// parseDirectDeps reads go.mod and returns a set of module paths that are
+// direct dependencies (i.e. not marked with the "// indirect" comment).
+func parseDirectDeps(gomodPath string) map[string]bool {
+	direct := map[string]bool{}
+	f, err := os.Open(gomodPath)
+	if err != nil {
+		return direct
+	}
+	defer f.Close()
+
+	inRequire := false
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "require (" {
+			inRequire = true
+			continue
+		}
+		if inRequire && line == ")" {
+			inRequire = false
+			continue
+		}
+		// Single-line require outside a block: "require module/path vX.Y.Z"
+		if strings.HasPrefix(line, "require ") {
+			line = strings.TrimPrefix(line, "require ")
+			line = strings.TrimSpace(line)
+			inRequire = false // single-line, not a block
+			if !strings.Contains(line, "// indirect") {
+				parts := strings.Fields(line)
+				if len(parts) >= 1 {
+					direct[parts[0]] = true
+				}
+			}
+			continue
+		}
+		if inRequire && line != "" && !strings.HasPrefix(line, "//") {
+			if !strings.Contains(line, "// indirect") {
+				parts := strings.Fields(line)
+				if len(parts) >= 1 {
+					direct[parts[0]] = true
+				}
+			}
+		}
+	}
+	return direct
 }
