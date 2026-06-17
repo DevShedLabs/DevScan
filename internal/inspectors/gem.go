@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
@@ -21,8 +20,11 @@ func (i *GemInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		if path == "" {
 			return nil, nil
 		}
-		// Only scan if this directory has a Gemfile.
-		if _, err := os.Stat(filepath.Join(path, "Gemfile")); err != nil {
+		gemfile, err := safeJoin(path, "Gemfile")
+		if err != nil {
+			return nil, err
+		}
+		if _, err := os.Stat(gemfile); err != nil {
 			return nil, nil
 		}
 		return inspectGemfileLock(path)
@@ -62,7 +64,10 @@ func (i *GemInspector) Inspect(scope, path string) ([]schema.Package, error) {
 
 // inspectGemfileLock reads Gemfile.lock and returns all locked gems.
 func inspectGemfileLock(path string) ([]schema.Package, error) {
-	lockPath := filepath.Join(path, "Gemfile.lock")
+	lockPath, err := safeJoin(path, "Gemfile.lock")
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Open(lockPath)
 	if err != nil {
 		// No lockfile — nothing to report.

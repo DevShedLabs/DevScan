@@ -20,7 +20,11 @@ func (i *NpmInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		if path == "" {
 			return nil, nil
 		}
-		if _, err := os.Stat(filepath.Join(path, "package.json")); err != nil {
+		pkgjson, err := safeJoin(path, "package.json")
+		if err != nil {
+			return nil, err
+		}
+		if _, err := os.Stat(pkgjson); err != nil {
 			return nil, nil
 		}
 		return inspectPackageLock(path)
@@ -72,7 +76,10 @@ func (i *NpmInspector) Inspect(scope, path string) ([]schema.Package, error) {
 // including transitive dependencies, which is where many vulns hide.
 func inspectPackageLock(path string) ([]schema.Package, error) {
 	// Prefer package-lock.json (npm); fall back to npm list if absent.
-	lockPath := filepath.Join(path, "package-lock.json")
+	lockPath, err := safeJoin(path, "package-lock.json")
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Open(lockPath)
 	if err != nil {
 		return inspectNpmList(path)

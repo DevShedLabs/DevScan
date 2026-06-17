@@ -1,8 +1,23 @@
 package inspectors
 
 import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
 	"github.com/DevShedLabs/devscan/internal/schema"
 )
+
+// safeJoin joins root and file and returns an error if the result escapes root.
+// This prevents path traversal via malicious --path values like "../../etc".
+func safeJoin(root, file string) (string, error) {
+	abs := filepath.Join(root, file)
+	cleanRoot := filepath.Clean(root) + string(filepath.Separator)
+	if !strings.HasPrefix(filepath.Clean(abs)+string(filepath.Separator), cleanRoot) {
+		return "", fmt.Errorf("path %q escapes project root", file)
+	}
+	return abs, nil
+}
 
 // Inspector scans an ecosystem for installed packages.
 type Inspector interface {

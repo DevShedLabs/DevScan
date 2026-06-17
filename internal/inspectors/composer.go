@@ -20,7 +20,11 @@ func (i *ComposerInspector) Inspect(scope, path string) ([]schema.Package, error
 		if path == "" {
 			return nil, nil
 		}
-		if _, err := os.Stat(filepath.Join(path, "composer.json")); err != nil {
+		composerjson, err := safeJoin(path, "composer.json")
+		if err != nil {
+			return nil, err
+		}
+		if _, err := os.Stat(composerjson); err != nil {
 			return nil, nil
 		}
 		return inspectComposerLock(path)
@@ -64,7 +68,10 @@ func (i *ComposerInspector) Inspect(scope, path string) ([]schema.Package, error
 // inspectComposerLock reads composer.lock and returns all locked packages with
 // accurate versions, avoiding the stale-cache problem of `composer show`.
 func inspectComposerLock(path string) ([]schema.Package, error) {
-	lockPath := filepath.Join(path, "composer.lock")
+	lockPath, err := safeJoin(path, "composer.lock")
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Open(lockPath)
 	if err != nil {
 		return nil, nil
@@ -117,7 +124,11 @@ func inspectComposerLock(path string) ([]schema.Package, error) {
 
 // composerDirectDeps reads composer.json and returns the set of directly required packages.
 func composerDirectDeps(path string) map[string]bool {
-	f, err := os.Open(filepath.Join(path, "composer.json"))
+	composerjson, err := safeJoin(path, "composer.json")
+	if err != nil {
+		return nil
+	}
+	f, err := os.Open(composerjson)
 	if err != nil {
 		return nil
 	}

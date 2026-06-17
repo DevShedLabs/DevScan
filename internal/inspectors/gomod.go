@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/DevShedLabs/devscan/internal/schema"
@@ -26,7 +25,10 @@ func (i *GoModInspector) Inspect(scope, path string) ([]schema.Package, error) {
 		return nil, nil
 	}
 
-	gomodPath := filepath.Join(path, "go.mod")
+	gomodPath, err := safeJoin(path, "go.mod")
+	if err != nil {
+		return nil, err
+	}
 	if path != "" {
 		if _, err := os.Stat(gomodPath); err != nil {
 			return nil, nil

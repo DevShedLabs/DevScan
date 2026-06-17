@@ -73,7 +73,11 @@ func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
 	if path == "" {
 		return nil, nil
 	}
-	if _, err := os.Stat(filepath.Join(path, "Cargo.toml")); err != nil {
+	cargotoml, err := safeJoin(path, "Cargo.toml")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(cargotoml); err != nil {
 		return nil, nil
 	}
 	return inspectCargoLock(path)
@@ -83,7 +87,10 @@ func (i *CargoInspector) inspectProject(path string) ([]schema.Package, error) {
 // Cargo.lock is TOML but we can parse it with a simple line scanner since
 // the structure is regular: [[package]] sections with name/version/source fields.
 func inspectCargoLock(path string) ([]schema.Package, error) {
-	lockPath := filepath.Join(path, "Cargo.lock")
+	lockPath, err := safeJoin(path, "Cargo.lock")
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(lockPath)
 	if err != nil {
 		return nil, nil

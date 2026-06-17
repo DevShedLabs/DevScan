@@ -18,7 +18,10 @@ func (i *PnpmInspector) Inspect(scope, path string) ([]schema.Package, error) {
 	if scope != "project" || path == "" {
 		return nil, nil
 	}
-	lockPath := filepath.Join(path, "pnpm-lock.yaml")
+	lockPath, err := safeJoin(path, "pnpm-lock.yaml")
+	if err != nil {
+		return nil, err
+	}
 	if _, err := os.Stat(lockPath); err != nil {
 		return nil, nil // not a pnpm project
 	}
