@@ -62,6 +62,7 @@ go build -o devscan .
 | `devscan compile` | Compile blocklist resources into a single index |
 | `devscan update-db` | Fetch latest blocklist databases and recompile |
 | `devscan intercept` | Manage package manager shims for real-time install protection |
+| `devscan install-skill` | Install the Claude Code AI skill into `~/.claude/skills/` |
 
 ---
 
@@ -613,6 +614,32 @@ Large scans (1000+ packages) are automatically chunked into batches to stay with
 
 ---
 
+## Claude Code Integration
+
+devscan ships a [Claude Code](https://claude.ai/code) skill that lets AI agents run devscan against any project — auditing vulnerabilities, scanning for secrets, checking outdated packages, and generating reports.
+
+Install the skill once:
+
+```bash
+devscan install-skill
+```
+
+This copies the skill into `~/.claude/skills/run-devscan/`, making `/run-devscan` available in every project in every Claude Code session.
+
+Once installed, Claude can run commands like:
+
+```
+audit this project for vulnerabilities
+scan for exposed secrets
+check for outdated dependencies
+generate an HTML report
+look up GHSA-29mw-wpgm-hmr9
+```
+
+The skill source lives at [`cmd/skills/run-devscan/`](cmd/skills/run-devscan/) and is embedded directly in the binary — no separate download needed.
+
+---
+
 ## Architecture
 
 ```
@@ -656,6 +683,7 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] Intercept: lockfile scanning for `npm ci`, `bun install`, `composer install/update`, `go get`
 - [x] User advisories — flag compromised packages immediately via `.devscan/advisories.yaml` without waiting for OSV
 - [x] `devscan osv` — search OSV by package name, version, advisory ID, or keyword; export as HTML/Markdown/JSON
+- [x] Claude Code skill — `devscan install-skill` installs `/run-devscan` into `~/.claude/skills/` for AI-assisted scanning in any project
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
