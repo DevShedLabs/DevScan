@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// advisoryIDRe matches well-known advisory ID prefixes with only safe characters.
+var advisoryIDRe = regexp.MustCompile(`(?i)^(CVE|GHSA|OSV|RUSTSEC|GO|PYSEC|NPM|SNYK)-[A-Za-z0-9\-]+$`)
 
 const osvQueryURL = "https://api.osv.dev/v1/query"
 
@@ -63,6 +67,9 @@ func SearchByPackage(name, ecosystem, version string, noCache bool) ([]OSVAdviso
 
 // LookupID fetches a single advisory by its OSV/CVE/GHSA ID.
 func LookupID(id string) (*OSVAdvisory, error) {
+	if !advisoryIDRe.MatchString(id) {
+		return nil, fmt.Errorf("invalid advisory ID %q", id)
+	}
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(osvVulnURL + id)
 	if err != nil {
