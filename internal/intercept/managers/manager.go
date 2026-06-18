@@ -56,6 +56,7 @@ func All() []Manager {
 		&Cargo{},
 		&GoMod{},
 		&Composer{},
+		&VSCode{},
 	}
 }
 

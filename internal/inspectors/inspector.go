@@ -66,5 +66,6 @@ func All() []Inspector {
 		&GoModInspector{},
 		&GemInspector{},
 		&BrewInspector{},
+		&VSCodeInspector{},
 	}
 }

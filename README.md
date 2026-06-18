@@ -63,6 +63,7 @@ go build -o devscan .
 | `devscan update-db` | Fetch latest blocklist databases and recompile |
 | `devscan intercept` | Manage package manager shims for real-time install protection |
 | `devscan install-skill` | Install the Claude Code AI skill into `~/.claude/skills/` |
+| `devscan update` | Update devscan to the latest release |
 
 ---
 
@@ -480,6 +481,88 @@ Both explicit installs and lockfile installs are scanned. Lockfile commands (`np
 | cargo | `cargo add`, `cargo install` |
 | go | `go get`, `go install`, `go.sum` (lockfile) |
 | composer | `composer require`, `composer install`, `composer update` (lockfile) |
+| code / code-insiders | `code --install-extension`, `code-insiders --install-extension` |
+
+---
+
+## IDE Protection
+
+VS Code extensions are an increasingly common attack surface. Malicious publishers clone popular extension names, slip through the marketplace review process, and execute arbitrary code on install or activation. devscan addresses this in two ways: auditing what you already have installed, and blocking malicious extensions before they land.
+
+### Scan installed extensions
+
+devscan automatically enumerates extensions across all VS Code-family editors on your machine:
+
+- **VS Code** — `~/.vscode/extensions/`
+- **VS Code Insiders** — `~/.vscode-insiders/extensions/`
+- **Cursor** — `~/.cursor/extensions/`
+- **VSCodium** — `~/.vscode-oss/extensions/`
+
+Extensions from all detected editors are merged and deduplicated. Run a full audit:
+
+```bash
+# Audit all installed extensions across every VS Code variant
+devscan audit --global --ecosystem vscode
+
+# List every installed extension with version and path
+devscan list --global --ecosystem vscode
+
+# Full health check including extensions
+devscan doctor --global
+```
+
+Extensions are checked against OSV.dev (using the `VSCode` ecosystem) and your local blocklists — the same pipeline used for npm, pip, and cargo packages. OSV's `VSCode` ecosystem is valid but sparsely populated today; blocklists are the primary coverage layer for now. Any finding is reported with severity, advisory ID or blocklist source, and the extension path.
+
+### Block malicious extensions at install time
+
+When intercept shims are enabled, `code --install-extension` is intercepted before the extension is fetched:
+
+```bash
+# 1. Add known-bad publishers/extensions to your blocklist
+#    (see Blocklists section for format)
+
+# 2. Compile the blocklist
+devscan compile
+
+# 3. Enable shims — writes shims for `code`, `code-insiders`, and `codium`
+devscan intercept enable
+
+# 4. Reload your shell
+source ~/.zshrc
+```
+
+After that, any attempt to install a blocklisted extension via the CLI is stopped:
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                        DEVSCAN BLOCKED                               ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  [CRITICAL]   malicious-publisher.fake-copilot
+               Found in: vscode-blocklist.csv
+
+  code --install-extension was blocked. Remove this extension from your command and try again.
+```
+
+### Blocklist format for extensions
+
+Add a CSV to `~/.devscan/resources/` with `Ecosystem` set to `vscode` and `Name` as `publisher.extensionname`:
+
+```
+Ecosystem,Name,Version,Reason
+vscode,malicious-publisher.fake-copilot,,MALWARE
+vscode,badactor.crypto-stealer,1.0.0,MALWARE
+```
+
+Omit `Version` to block all versions of that extension. Then recompile:
+
+```bash
+devscan compile
+```
+
+### GUI installs
+
+The VS Code Extensions panel does not invoke the `code` binary, so shims cannot intercept GUI installs. devscan's post-install audit (`devscan audit --global --ecosystem vscode`) is the defence for that path — run it after installing extensions from the marketplace, or schedule it in CI.
 
 ---
 
@@ -606,6 +689,9 @@ Place `.devscan.json` in your project root or home directory:
 | PHP / Composer | ✓ | ✓ | ✓ via OSV.dev |
 | Rust / Cargo | ✓ | ✓ | ✓ via OSV.dev |
 | Go modules | ✓ | ✓ (project) | ✓ via OSV.dev |
+| Ruby / Gem | ✓ | ✓ | ✓ via OSV.dev |
+| Homebrew | — | ✓ | ✓ via OSV.dev |
+| VS Code extensions | — | ✓ | ✓ via OSV.dev (`VSCode` ecosystem) + blocklists |
 | Git | ✓ | — | — |
 
 Vulnerability data is sourced from [OSV.dev](https://osv.dev) — an open, community-driven vulnerability database covering npm, PyPI, Go, crates.io, Packagist, RubyGems, and more.
@@ -647,7 +733,7 @@ devscan/
   cmd/                  # CLI commands (Cobra)
   internal/
     detectors/          # Runtime detection (node, bun, python, git, php, rust, go)
-    inspectors/         # Package inspection (npm, pip, composer, cargo, gomod)
+    inspectors/         # Package inspection (npm, pip, composer, cargo, gomod, vscode extensions)
     advisory/           # Vulnerability lookups (OSV.dev + local blocklists) with 1hr cache
     intercept/          # Package manager shims — pre-install supply-chain blocking
     intercept/managers/ # Per-manager argument parsing (npm, pip, cargo, bun)
@@ -684,6 +770,8 @@ The JSON output schema is the central contract. The CLI, and future TUI and GUI 
 - [x] User advisories — flag compromised packages immediately via `.devscan/advisories.yaml` without waiting for OSV
 - [x] `devscan osv` — search OSV by package name, version, advisory ID, or keyword; export as HTML/Markdown/JSON
 - [x] Claude Code skill — `devscan install-skill` installs `/run-devscan` into `~/.claude/skills/` for AI-assisted scanning in any project
+- [x] VS Code extension scanning — audit installed extensions across VS Code, Insiders, Cursor, and Codium against OSV (`VSCode` ecosystem) and local blocklists
+- [x] VS Code extension intercept — `code --install-extension` shim blocks malicious extensions before install
 - [ ] System package managers — dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), apk (Alpine)
 - [ ] Baseline diff (`--compare baseline.json`)
 - [ ] CI summary output (GitHub Actions annotations)
