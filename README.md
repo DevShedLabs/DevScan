@@ -691,7 +691,7 @@ Place `.devscan.json` in your project root or home directory:
 | Go modules | ✓ | ✓ (project) | ✓ via OSV.dev |
 | Ruby / Gem | ✓ | ✓ | ✓ via OSV.dev |
 | Homebrew | — | ✓ | ✓ via OSV.dev |
-| VS Code extensions | — | ✓ | ✓ via OSV.dev (`VSCode` ecosystem) + blocklists |
+| VS Code extensions | — | ✓ (blocklist only) | ✓ via local blocklists; OSV `VSCode` ecosystem exists but has no data yet |
 | Git | ✓ | — | — |
 
 Vulnerability data is sourced from [OSV.dev](https://osv.dev) — an open, community-driven vulnerability database covering npm, PyPI, Go, crates.io, Packagist, RubyGems, and more.

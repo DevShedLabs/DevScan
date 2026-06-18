@@ -66,6 +66,13 @@ func All() []Inspector {
 		&GoModInspector{},
 		&GemInspector{},
 		&BrewInspector{},
-		&VSCodeInspector{},
 	}
+}
+
+// AllWithVSCode returns all inspectors including VS Code extensions.
+// Kept separate because there is currently no reliable public vulnerability
+// feed for VS Code extensions — coverage depends entirely on local blocklists.
+// Use this when the caller explicitly requests the vscode ecosystem.
+func AllWithVSCode() []Inspector {
+	return append(All(), &VSCodeInspector{})
 }
